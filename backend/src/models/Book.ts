@@ -1,0 +1,48 @@
+import mongoose, { Schema, Document } from 'mongoose';
+import { Book as IBook, BookType, Niche, BookContext } from '@ai-kindle/shared';
+
+export interface BookDocument extends Omit<IBook, '_id'>, Document {}
+
+const BookContextSchema = new Schema<BookContext>({
+  title: { type: String },
+  description: { type: String },
+  targetAudience: { type: String },
+  tone: { type: String },
+  additionalNotes: { type: String },
+  customStyleGuide: { type: String },
+  customArtDirection: { type: String },
+  chapterCount: { type: Number },
+  chapterSize: { type: String, enum: ['small', 'medium', 'large'] }
+}, { _id: false });
+
+const BookSchema = new Schema<BookDocument>({
+  title: { type: String, required: true },
+  bookType: { type: String, enum: Object.values(BookType), required: true },
+  niche: { type: String, enum: Object.values(Niche), required: true },
+  context: { type: BookContextSchema, required: true },
+  outlineId: { type: Schema.Types.ObjectId, ref: 'BookOutline' },
+  jobId: { type: Schema.Types.ObjectId, ref: 'GenerationJob' },
+  status: { 
+    type: String, 
+    enum: ['draft', 'generating', 'complete', 'failed', 'published'],
+    default: 'draft'
+  },
+  publishedAt: { type: Date },
+  publishArtifactUrl: { type: String }, // URL or path to the generated EPUB/PDF
+  coverImageUrl: { type: String },
+  coverImagePrompt: { type: String },
+  prologue: { type: String },
+  prologuePrompt: { type: String },
+  epilogue: { type: String },
+  epiloguePrompt: { type: String },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+BookSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
+
+export const BookModel = mongoose.model<BookDocument>('Book', BookSchema);
+

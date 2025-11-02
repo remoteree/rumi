@@ -1,0 +1,27 @@
+{
+  "name": "ai-kindle",
+  "version": "1.0.0",
+  "description": "AI-powered Kindle book creation tool",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "predev": "npm run build:shared",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:worker": "cd backend && npm run dev:worker",
+    "build": "npm run build:shared && npm run build:frontend && npm run build:backend",
+    "build:shared": "cd shared && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "install:all": "npm install && cd shared && npm install && npm run build && cd ../frontend && npm install && cd ../backend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+
