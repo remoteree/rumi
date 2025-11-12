@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Book, BookContext, ApiResponse, GenerationJob, PromptVersion, TokenUsage } from '@ai-kindle/shared';
+import { Book, BookContext, ApiResponse, GenerationJob, PromptVersion, TokenUsage, WritingStyle } from '@ai-kindle/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -11,7 +11,7 @@ const client = axios.create({
 });
 
 export const booksApi = {
-  create: async (data: { title: string; bookType: string; niche: string; context: BookContext }) => {
+  create: async (data: { title: string; bookType: string; niche: string; writingStyle?: string; context: BookContext }) => {
     const res = await client.post<ApiResponse<{ book: Book; jobId: string }>>('/books', data);
     return res.data;
   },
@@ -39,8 +39,8 @@ export const booksApi = {
     const res = await client.get<ApiResponse<{ ready: boolean; issues: string[] }>>(`/books/${id}/publish-status`);
     return res.data;
   },
-  publish: async (id: string) => {
-    const res = await client.post<ApiResponse<{ epubFilePath: string; downloadUrl: string; publishedAt: Date }>>(`/books/${id}/publish`);
+  publish: async (id: string, force?: boolean) => {
+    const res = await client.post<ApiResponse<{ epubFilePath: string; downloadUrl: string; publishedAt: Date }>>(`/books/${id}/publish`, { force: force === true });
     return res.data;
   },
   downloadPublished: async (id: string) => {
@@ -55,6 +55,11 @@ export const booksApi = {
   generateCoverPrompt: async (id: string) => {
     const res = await client.post<ApiResponse<{ coverImagePrompt: string }>>(`/books/${id}/generate-cover-prompt`);
     return res.data;
+  },
+  exportDOCX: async (id: string) => {
+    // Trigger download
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    window.open(`${API_BASE_URL}/books/${id}/export-docx`, '_blank');
   }
 };
 
@@ -96,6 +101,29 @@ export const promptsApi = {
   },
   createVersion: async (id: string, data: { prompt: string; variables: string[] }) => {
     const res = await client.post<ApiResponse<PromptVersion>>(`/prompts/${id}/version`, data);
+    return res.data;
+  }
+};
+
+export const writingStylesApi = {
+  getAll: async () => {
+    const res = await client.get<ApiResponse<WritingStyle[]>>('/writing-styles');
+    return res.data;
+  },
+  getById: async (id: string) => {
+    const res = await client.get<ApiResponse<WritingStyle>>(`/writing-styles/${id}`);
+    return res.data;
+  },
+  create: async (data: { name: string; description: string }) => {
+    const res = await client.post<ApiResponse<WritingStyle>>('/writing-styles', data);
+    return res.data;
+  },
+  update: async (id: string, data: { name?: string; description?: string }) => {
+    const res = await client.put<ApiResponse<WritingStyle>>(`/writing-styles/${id}`, data);
+    return res.data;
+  },
+  delete: async (id: string) => {
+    const res = await client.delete<ApiResponse<{ message: string }>>(`/writing-styles/${id}`);
     return res.data;
   }
 };
@@ -151,6 +179,10 @@ export const adminApi = {
   },
   updateCoverImagePrompt: async (bookId: string, coverImagePrompt: string) => {
     const res = await client.put<ApiResponse<any>>(`/admin/books/${bookId}/cover-image-prompt`, { coverImagePrompt });
+    return res.data;
+  },
+  updatePublishWithoutChapterImages: async (bookId: string, publishWithoutChapterImages: boolean) => {
+    const res = await client.put<ApiResponse<any>>(`/admin/books/${bookId}/publish-without-chapter-images`, { publishWithoutChapterImages });
     return res.data;
   }
 };

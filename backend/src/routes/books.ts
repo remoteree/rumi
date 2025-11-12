@@ -12,12 +12,13 @@ const router = express.Router();
 // Create a new book
 router.post('/', async (req, res) => {
   try {
-    const { title, bookType, niche, context } = req.body;
+    const { title, bookType, niche, writingStyle, context } = req.body;
 
     const book = new BookModel({
       title,
       bookType,
       niche,
+      writingStyle,
       context,
       status: 'draft'
     });
@@ -105,11 +106,12 @@ router.post('/:id/start-generation', async (req, res) => {
     const { PromptVersionModel } = await import('../models/PromptVersion');
     const existingPrompts = await PromptVersionModel.findOne({
       bookType: book.bookType,
-      niche: book.niche
+      niche: book.niche,
+      writingStyle: (book as any).writingStyle || null
     });
 
     if (!existingPrompts) {
-      await generatePromptsForCombo(book.bookType as BookType, book.niche as Niche);
+      await generatePromptsForCombo(book.bookType as BookType, book.niche as Niche, (book as any).writingStyle);
     }
 
     // Update book status
@@ -159,6 +161,7 @@ router.get('/:id/publish-status', async (req, res) => {
 router.post('/:id/publish', async (req, res) => {
   try {
     const bookId = req.params.id;
+    const forcePublish = req.body.force === true; // Allow force publishing
     
     if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
       return res.status(400).json({ success: false, error: 'Invalid book ID format' });
@@ -173,12 +176,16 @@ router.post('/:id/publish', async (req, res) => {
     const { isBookReadyForPublishing, generateEPUB } = await import('../services/publishService');
     const { ready, issues } = await isBookReadyForPublishing(bookId);
 
-    if (!ready) {
+    if (!ready && !forcePublish) {
       return res.status(400).json({
         success: false,
         error: 'Book is not ready for publishing',
         issues
       });
+    }
+
+    if (!ready && forcePublish) {
+      console.log(`⚠️ [PUBLISH] Force publishing despite ${issues.length} issues:`, issues);
     }
 
     // Generate EPUB
@@ -218,6 +225,67 @@ router.post('/:id/publish', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Error publishing book:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Export book as DOCX
+router.get('/:id/export-docx', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    const book = await BookModel.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ success: false, error: 'Book not found' });
+    }
+
+    // Generate DOCX
+    console.log(`📄 [DOCX] Generating DOCX for book ${bookId}...`);
+    const { generateDOCX } = await import('../services/docService');
+    const docxFilePath = await generateDOCX(bookId);
+    console.log(`✅ [DOCX] DOCX generated at: ${docxFilePath}`);
+
+    // Verify file exists
+    const fsLib = await import('fs/promises');
+    try {
+      const stats = await fsLib.stat(docxFilePath);
+      console.log(`📊 [DOCX] DOCX file size: ${stats.size} bytes`);
+    } catch (error: any) {
+      console.error(`❌ [DOCX] DOCX file not found at ${docxFilePath}:`, error.message);
+      return res.status(500).json({
+        success: false,
+        error: 'DOCX file was not created successfully'
+      });
+    }
+
+    // Send file for download
+    const pathLib = await import('path');
+    const fileName = `${(book as any).title.replace(/[^a-zA-Z0-9]/g, '_')}.docx`;
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    
+    const fsSync = await import('fs');
+    const fileStream = fsSync.createReadStream(docxFilePath);
+    fileStream.pipe(res);
+
+    fileStream.on('end', async () => {
+      // Optionally clean up the file after sending (or keep it for later downloads)
+      // await fsLib.unlink(docxFilePath);
+    });
+
+    fileStream.on('error', (error: any) => {
+      console.error('Error streaming DOCX file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: 'Error streaming file' });
+      }
+    });
+  } catch (error: any) {
+    console.error('Error exporting book as DOCX:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -354,7 +422,8 @@ router.post('/:id/generate-cover-prompt', async (req, res) => {
       book.context,
       styleGuide,
       artDirection,
-      outline
+      outline,
+      (book as any).writingStyle
     );
 
     if (!coverPrompt) {

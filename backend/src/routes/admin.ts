@@ -490,6 +490,40 @@ router.put('/books/:bookId/cover-image-prompt', async (req, res) => {
   }
 });
 
+// Update publish without chapter images setting
+router.put('/books/:bookId/publish-without-chapter-images', async (req, res) => {
+  try {
+    const { bookId } = req.params;
+    const { publishWithoutChapterImages } = req.body;
+
+    const book = await BookModel.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Book not found' 
+      });
+    }
+
+    await BookModel.updateOne(
+      { _id: bookId },
+      { publishWithoutChapterImages: publishWithoutChapterImages === true }
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Publish without chapter images setting updated successfully',
+      data: {
+        publishWithoutChapterImages: publishWithoutChapterImages === true
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // Get chapter with image prompt (for admin to see what prompt to use)
 router.get('/books/:bookId/chapters/:chapterNumber/prompt', async (req, res) => {
   try {

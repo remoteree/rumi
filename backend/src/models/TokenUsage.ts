@@ -20,3 +20,8 @@ TokenUsageSchema.index({ jobId: 1 });
 
 export const TokenUsageModel = mongoose.model<TokenUsageDocument>('TokenUsage', TokenUsageSchema);
 
+
+
+
+
+

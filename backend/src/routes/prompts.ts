@@ -20,7 +20,8 @@ router.get('/:bookType/:niche', async (req, res) => {
 router.post('/generate/:bookType/:niche', async (req, res) => {
   try {
     const { bookType, niche } = req.params;
-    const prompts = await generatePromptsForCombo(bookType as BookType, niche as Niche);
+    const { writingStyle } = req.body; // Optional writing style from request body
+    const prompts = await generatePromptsForCombo(bookType as BookType, niche as Niche, writingStyle);
     res.json({ success: true, data: prompts });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -81,4 +82,9 @@ router.post('/:id/version', async (req, res) => {
 });
 
 export default router;
+
+
+
+
+
 

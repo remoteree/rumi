@@ -8,6 +8,7 @@ import booksRouter from './routes/books';
 import promptsRouter from './routes/prompts';
 import jobsRouter from './routes/jobs';
 import adminRouter from './routes/admin';
+import writingStylesRouter from './routes/writingStyles';
 
 // Get the directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -76,6 +77,7 @@ app.use('/api/books', booksRouter);
 app.use('/api/prompts', promptsRouter);
 app.use('/api/jobs', jobsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/writing-styles', writingStylesRouter);
 
 // Health check
 app.get('/health', (req, res) => {

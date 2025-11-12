@@ -90,6 +90,24 @@ export const BOOK_TYPES: BookTypeMetadata[] = [
     idealUseCase: 'Food, fitness, crafts, sustainability',
     defaultChapterCount: 25,
     defaultChapterSize: 'small'
+  },
+  {
+    id: BookType.PLAIN_NON_FICTION,
+    name: 'Plain Non-Fiction',
+    description: 'Traditional non-fiction book with narrative chapters',
+    coreFormat: 'Narrative chapters with clear structure and flow',
+    idealUseCase: 'Biographies, history, business, self-help, education',
+    defaultChapterCount: 15,
+    defaultChapterSize: 'large'
+  },
+  {
+    id: BookType.FICTION_NOVEL,
+    name: 'Fiction Novel',
+    description: 'Full-length fiction narrative with character development and plot',
+    coreFormat: 'Narrative chapters with characters, dialogue, and story arcs',
+    idealUseCase: 'Literary fiction, genre fiction, fantasy, mystery, romance',
+    defaultChapterCount: 20,
+    defaultChapterSize: 'large'
   }
 ];
 
@@ -148,6 +166,22 @@ export const NICHES: NicheMetadata[] = [
     id: Niche.STORY_TELLING_FICTION,
     name: 'Story-Telling (Fiction)',
     focus: 'Fictional narratives, character-driven stories, plot-driven adventures'
+  },
+  {
+    id: Niche.SELF_HELP,
+    name: 'Self-Help',
+    focus: 'Personal development, life improvement, habits, relationships, confidence building'
+  },
+  {
+    id: Niche.INVESTIGATIVE_BIOGRAPHY,
+    name: 'Investigative Biography',
+    focus: 'Deep-dive biographies, investigative reporting, uncovering hidden truths, historical revelations'
+  },
+  {
+    id: Niche.INVESTIGATIVE_CURRENT_AFFAIRS,
+    name: 'Investigative Current Affairs',
+    focus: 'In-depth analysis of current events, investigative journalism, political exposés, social issues, breaking news deep-dives'
   }
 ];
+
 

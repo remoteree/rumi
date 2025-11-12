@@ -90,3 +90,8 @@ npm run dev:worker
 - Check you have credits/quota available
 - Ensure model names are correct (gpt-4-turbo-preview, dall-e-3)
 
+
+
+
+
+

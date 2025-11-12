@@ -43,3 +43,8 @@ const BookOutlineSchema = new Schema<BookOutlineDocument>({
 
 export const BookOutlineModel = mongoose.model<BookOutlineDocument>('BookOutline', BookOutlineSchema);
 
+
+
+
+
+

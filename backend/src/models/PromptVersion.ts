@@ -6,6 +6,7 @@ export interface PromptVersionDocument extends Omit<IPromptVersion, '_id'>, Docu
 const PromptVersionSchema = new Schema<PromptVersionDocument>({
   bookType: { type: String, enum: Object.values(BookType), required: true },
   niche: { type: String, enum: Object.values(Niche), required: true },
+  writingStyle: { type: String }, // Optional writing style
   promptType: { type: String, enum: Object.values(PromptType), required: true },
   version: { type: Number, required: true, default: 1 },
   prompt: { type: String, required: true },
@@ -17,8 +18,9 @@ const PromptVersionSchema = new Schema<PromptVersionDocument>({
   }
 });
 
-// Compound index for quick lookup
-PromptVersionSchema.index({ bookType: 1, niche: 1, promptType: 1, version: 1 }, { unique: true });
+// Compound index for quick lookup - includes writingStyle to prevent duplicates
+// Note: We normalize undefined/null writingStyle to null in the index
+PromptVersionSchema.index({ bookType: 1, niche: 1, writingStyle: 1, promptType: 1, version: 1 }, { unique: true });
 
 PromptVersionSchema.pre('save', function(next) {
   if (this.metadata) {
@@ -28,4 +30,9 @@ PromptVersionSchema.pre('save', function(next) {
 });
 
 export const PromptVersionModel = mongoose.model<PromptVersionDocument>('PromptVersion', PromptVersionSchema);
+
+
+
+
+
 

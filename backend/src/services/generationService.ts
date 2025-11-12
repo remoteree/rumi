@@ -47,13 +47,14 @@ export async function generateOutline(
   bookId: string,
   bookType: BookType,
   niche: Niche,
-  context: BookContext
+  context: BookContext,
+  writingStyle?: string
 ): Promise<string> {
   const job = await GenerationJobModel.findOne({ bookId });
   if (!job) throw new Error('Job not found');
 
   console.log(`📝 [OUTLINE] Starting outline generation for book ${bookId}`);
-  console.log(`   Book Type: ${bookType}, Niche: ${niche}`);
+  console.log(`   Book Type: ${bookType}, Niche: ${niche}${writingStyle ? `, Writing Style: ${writingStyle}` : ''}`);
 
   try {
     await GenerationJobModel.updateOne(
@@ -62,22 +63,22 @@ export async function generateOutline(
     );
 
     // Get prompts - auto-generate if they don't exist
-    console.log(`📋 [OUTLINE] Loading prompts for ${bookType}/${niche}...`);
-    let styleGuidePrompt = await getPromptVersion(bookType, niche, PromptType.STYLE_GUIDE);
-    let artDirectionPrompt = await getPromptVersion(bookType, niche, PromptType.ART_DIRECTION);
-    let outlinePrompt = await getPromptVersion(bookType, niche, PromptType.OUTLINE);
+    console.log(`📋 [OUTLINE] Loading prompts for ${bookType}/${niche}${writingStyle ? `/${writingStyle}` : ''}...`);
+    let styleGuidePrompt = await getPromptVersion(bookType, niche, PromptType.STYLE_GUIDE, undefined, writingStyle);
+    let artDirectionPrompt = await getPromptVersion(bookType, niche, PromptType.ART_DIRECTION, undefined, writingStyle);
+    let outlinePrompt = await getPromptVersion(bookType, niche, PromptType.OUTLINE, undefined, writingStyle);
 
     // If any prompts are missing, generate them automatically
     if (!styleGuidePrompt || !artDirectionPrompt || !outlinePrompt) {
-      console.log(`⚠️ [OUTLINE] Some prompts are missing. Auto-generating prompts for ${bookType}/${niche}...`);
+      console.log(`⚠️ [OUTLINE] Some prompts are missing. Auto-generating prompts for ${bookType}/${niche}${writingStyle ? `/${writingStyle}` : ''}...`);
       try {
-        await generatePromptsForCombo(bookType, niche);
+        await generatePromptsForCombo(bookType, niche, writingStyle);
         console.log(`✅ [OUTLINE] Prompts auto-generated successfully`);
         
         // Reload prompts after generation
-        styleGuidePrompt = await getPromptVersion(bookType, niche, PromptType.STYLE_GUIDE);
-        artDirectionPrompt = await getPromptVersion(bookType, niche, PromptType.ART_DIRECTION);
-        outlinePrompt = await getPromptVersion(bookType, niche, PromptType.OUTLINE);
+        styleGuidePrompt = await getPromptVersion(bookType, niche, PromptType.STYLE_GUIDE, undefined, writingStyle);
+        artDirectionPrompt = await getPromptVersion(bookType, niche, PromptType.ART_DIRECTION, undefined, writingStyle);
+        outlinePrompt = await getPromptVersion(bookType, niche, PromptType.OUTLINE, undefined, writingStyle);
         
         if (!styleGuidePrompt || !artDirectionPrompt || !outlinePrompt) {
           throw new Error('Failed to generate or load prompts');
@@ -144,10 +145,38 @@ export async function generateOutline(
     
     const contextText = JSON.stringify(context, null, 2);
     
+    // Fetch current trends from Perplexity if enabled (before generating outline)
+    let currentTrends = '';
+    let trendsInstructions = '';
+    if (context.usePerplexity) {
+      try {
+        const book = await BookModel.findById(bookId);
+        if (book) {
+          const { fetchBookLevelTrends } = await import('./perplexityService');
+          const trends = await fetchBookLevelTrends(
+            book.title,
+            context.description || '',
+            niche,
+            context.perplexityTopics
+          );
+          if (trends) {
+            currentTrends = `\n\nCurrent Trends and Recent Developments (use to inform chapter topics and structure):\n${trends}\n`;
+            trendsInstructions = `\nIMPORTANT: Use the current trends and recent developments provided above to inform your chapter topics and structure. Consider incorporating relevant current topics, recent examples, and trending themes that align with the book's focus.`;
+            console.log(`📰 [OUTLINE] Current trends fetched from Perplexity to inform outline`);
+          }
+        }
+      } catch (error: any) {
+        console.warn(`⚠️ [OUTLINE] Failed to fetch Perplexity trends: ${error.message}`);
+        // Continue without trends - not critical
+      }
+    }
+    
     const outlineText = await replaceVariables(outlinePrompt.prompt, {
       '{{BOOK_CONTEXT}}': contextText,
       '{{STYLE_GUIDE}}': JSON.stringify(styleGuide, null, 2),
       '{{ART_DIRECTION}}': JSON.stringify(artDirection, null, 2),
+      '{{CURRENT_TRENDS}}': currentTrends,
+      '{{CURRENT_TRENDS_INSTRUCTIONS}}': trendsInstructions,
       '{{CHAPTER_COUNT_HINT}}': chapterCountHint
     });
 
@@ -192,9 +221,9 @@ export async function generateOutline(
     
     // Generate cover image prompt, prologue, and epilogue after outline
     console.log(`\n📸 [OUTLINE] Generating cover image prompt, prologue, and epilogue...`);
-    await generateCoverImagePrompt(bookId, bookType, niche, context, styleGuide, artDirection, outlineData);
-    await generatePrologue(bookId, bookType, niche, context, styleGuide, outlineData);
-    await generateEpilogue(bookId, bookType, niche, context, styleGuide, outlineData);
+    await generateCoverImagePrompt(bookId, bookType, niche, context, styleGuide, artDirection, outlineData, writingStyle);
+    await generatePrologue(bookId, bookType, niche, context, styleGuide, outlineData, writingStyle);
+    await generateEpilogue(bookId, bookType, niche, context, styleGuide, outlineData, writingStyle);
     
     return savedOutline._id!.toString();
   } catch (error: any) {
@@ -218,7 +247,8 @@ export async function generateCoverImagePrompt(
   context: BookContext,
   styleGuide: any,
   artDirection: any,
-  outline?: any
+  outline?: any,
+  writingStyle?: string
 ): Promise<string | null> {
   const job = await GenerationJobModel.findOne({ bookId });
   if (!job) throw new Error('Job not found');
@@ -226,23 +256,27 @@ export async function generateCoverImagePrompt(
   console.log(`📸 [COVER] Generating cover image prompt...`);
 
   try {
+    // Get book (needed for title and potentially outline)
+    const book = await BookModel.findById(bookId);
+    if (!book) {
+      throw new Error('Book not found');
+    }
+    const bookTitle = book.title;
+
     // Get outline if not provided
     let outlineData = outline;
-    if (!outlineData) {
-      const book = await BookModel.findById(bookId);
-      if (book?.outlineId) {
-        const outlineDoc = await BookOutlineModel.findById(book.outlineId);
-        if (outlineDoc) {
-          outlineData = outlineDoc;
-        }
+    if (!outlineData && book.outlineId) {
+      const outlineDoc = await BookOutlineModel.findById(book.outlineId);
+      if (outlineDoc) {
+        outlineData = outlineDoc;
       }
     }
 
-    let coverPromptTemplate = await getPromptVersion(bookType, niche, PromptType.COVER_IMAGE);
+    let coverPromptTemplate = await getPromptVersion(bookType, niche, PromptType.COVER_IMAGE, undefined, writingStyle);
     if (!coverPromptTemplate) {
       console.log(`⚠️ [COVER] Cover image prompt not found. Auto-generating...`);
-      await generatePromptsForCombo(bookType, niche);
-      coverPromptTemplate = await getPromptVersion(bookType, niche, PromptType.COVER_IMAGE);
+      await generatePromptsForCombo(bookType, niche, writingStyle);
+      coverPromptTemplate = await getPromptVersion(bookType, niche, PromptType.COVER_IMAGE, undefined, writingStyle);
     }
     if (!coverPromptTemplate) {
       console.warn(`⚠️ [COVER] Cover image prompt still not found after generation, skipping...`);
@@ -275,6 +309,7 @@ export async function generateCoverImagePrompt(
     }
 
     const promptText = await replaceVariables(coverPromptTemplate.prompt, {
+      '{{BOOK_TITLE}}': bookTitle,
       '{{BOOK_CONTEXT}}': JSON.stringify(context, null, 2),
       '{{STYLE_GUIDE}}': JSON.stringify(styleGuide, null, 2),
       '{{ART_DIRECTION}}': JSON.stringify(artDirection, null, 2),
@@ -316,7 +351,8 @@ export async function generatePrologue(
   niche: Niche,
   context: BookContext,
   styleGuide: any,
-  outline: any
+  outline: any,
+  writingStyle?: string
 ): Promise<void> {
   const job = await GenerationJobModel.findOne({ bookId });
   if (!job) throw new Error('Job not found');
@@ -324,11 +360,11 @@ export async function generatePrologue(
   console.log(`📖 [PROLOGUE] Generating prologue...`);
 
   try {
-    let prologuePromptTemplate = await getPromptVersion(bookType, niche, PromptType.PROLOGUE);
+    let prologuePromptTemplate = await getPromptVersion(bookType, niche, PromptType.PROLOGUE, undefined, writingStyle);
     if (!prologuePromptTemplate) {
       console.log(`⚠️ [PROLOGUE] Prologue prompt not found. Auto-generating...`);
-      await generatePromptsForCombo(bookType, niche);
-      prologuePromptTemplate = await getPromptVersion(bookType, niche, PromptType.PROLOGUE);
+      await generatePromptsForCombo(bookType, niche, writingStyle);
+      prologuePromptTemplate = await getPromptVersion(bookType, niche, PromptType.PROLOGUE, undefined, writingStyle);
     }
     if (!prologuePromptTemplate) {
       console.warn(`⚠️ [PROLOGUE] Prologue prompt still not found after generation, skipping...`);
@@ -378,7 +414,8 @@ export async function generateEpilogue(
   niche: Niche,
   context: BookContext,
   styleGuide: any,
-  outline: any
+  outline: any,
+  writingStyle?: string
 ): Promise<void> {
   const job = await GenerationJobModel.findOne({ bookId });
   if (!job) throw new Error('Job not found');
@@ -386,11 +423,11 @@ export async function generateEpilogue(
   console.log(`📖 [EPILOGUE] Generating epilogue...`);
 
   try {
-    let epiloguePromptTemplate = await getPromptVersion(bookType, niche, PromptType.EPILOGUE);
+    let epiloguePromptTemplate = await getPromptVersion(bookType, niche, PromptType.EPILOGUE, undefined, writingStyle);
     if (!epiloguePromptTemplate) {
       console.log(`⚠️ [EPILOGUE] Epilogue prompt not found. Auto-generating...`);
-      await generatePromptsForCombo(bookType, niche);
-      epiloguePromptTemplate = await getPromptVersion(bookType, niche, PromptType.EPILOGUE);
+      await generatePromptsForCombo(bookType, niche, writingStyle);
+      epiloguePromptTemplate = await getPromptVersion(bookType, niche, PromptType.EPILOGUE, undefined, writingStyle);
     }
     if (!epiloguePromptTemplate) {
       console.warn(`⚠️ [EPILOGUE] Epilogue prompt still not found after generation, skipping...`);
@@ -440,7 +477,8 @@ export async function generateChapterText(
   bookType: BookType,
   niche: Niche,
   context: BookContext,
-  outline: BookOutline
+  outline: BookOutline,
+  writingStyle?: string
 ): Promise<void> {
   const chapter = outline.structure.chapters.find(c => c.chapterNumber === chapterNumber);
   if (!chapter) throw new Error(`Chapter ${chapterNumber} not found in outline`);
@@ -470,16 +508,39 @@ export async function generateChapterText(
 
     // Get prompt - auto-generate if missing
     console.log(`📋 [CHAPTER ${chapterNumber}] Loading chapter text prompt...`);
-    let chapterTextPrompt = await getPromptVersion(bookType, niche, PromptType.CHAPTER_TEXT);
+    let chapterTextPrompt = await getPromptVersion(bookType, niche, PromptType.CHAPTER_TEXT, undefined, writingStyle);
     if (!chapterTextPrompt) {
       console.log(`⚠️ [CHAPTER ${chapterNumber}] Chapter text prompt not found. Auto-generating...`);
-      await generatePromptsForCombo(bookType, niche);
-      chapterTextPrompt = await getPromptVersion(bookType, niche, PromptType.CHAPTER_TEXT);
+      await generatePromptsForCombo(bookType, niche, writingStyle);
+      chapterTextPrompt = await getPromptVersion(bookType, niche, PromptType.CHAPTER_TEXT, undefined, writingStyle);
     }
     if (!chapterTextPrompt) {
       throw new Error('Chapter text prompt not found after auto-generation');
     }
     console.log(`✅ [CHAPTER ${chapterNumber}] Using prompt version ${chapterTextPrompt.version}`);
+
+    // Fetch current news from Perplexity if enabled
+    let currentNews = '';
+    if (context.usePerplexity) {
+      try {
+        const { fetchCurrentNews, generateNewsQuery } = await import('./perplexityService');
+        const newsQuery = generateNewsQuery(
+          chapter.title,
+          chapter.summary,
+          chapter.visualMotifs,
+          niche,
+          context.perplexityTopics
+        );
+        const news = await fetchCurrentNews(newsQuery, chapter.title, chapter.summary);
+        if (news) {
+          currentNews = `\n\nCurrent News and Recent Developments (use for context and examples, but focus on concept explanations):\n${news}\n`;
+          console.log(`📰 [CHAPTER ${chapterNumber}] Current news fetched from Perplexity`);
+        }
+      } catch (error: any) {
+        console.warn(`⚠️ [CHAPTER ${chapterNumber}] Failed to fetch Perplexity news: ${error.message}`);
+        // Continue without news - not critical
+      }
+    }
 
     // Replace variables
     console.log(`🔧 [CHAPTER ${chapterNumber}] Preparing prompt with variables...`);
@@ -493,7 +554,8 @@ export async function generateChapterText(
       '{{WORD_COUNT_TARGET}}': (chapter.wordCountTarget || 1200).toString(),
       '{{EMOTIONAL_TONE}}': chapter.emotionalTone,
       '{{VISUAL_MOTIFS}}': chapter.visualMotifs.join(', '),
-      '{{CHAPTER_STRUCTURE}}': chapter.sectionHeadings?.join(', ') || ''
+      '{{CHAPTER_STRUCTURE}}': chapter.sectionHeadings?.join(', ') || '',
+      '{{CURRENT_NEWS}}': currentNews || ''
     });
     console.log(`📊 [CHAPTER ${chapterNumber}] Prompt length: ${promptText.length} characters`);
     console.log(`📊 [CHAPTER ${chapterNumber}] Target word count: ${chapter.wordCountTarget || 1200}`);
@@ -570,7 +632,8 @@ export async function generateChapterImage(
   chapterNumber: number,
   bookType: BookType,
   niche: Niche,
-  outline: BookOutline
+  outline: BookOutline,
+  writingStyle?: string
 ): Promise<void> {
   const chapter = outline.structure.chapters.find(c => c.chapterNumber === chapterNumber);
   if (!chapter) throw new Error(`Chapter ${chapterNumber} not found in outline`);
@@ -594,11 +657,11 @@ export async function generateChapterImage(
   try {
     // Get prompt - auto-generate if missing
     console.log(`📋 [CHAPTER ${chapterNumber}] Loading image prompt template...`);
-    let chapterImagePrompt = await getPromptVersion(bookType, niche, PromptType.CHAPTER_IMAGE);
+    let chapterImagePrompt = await getPromptVersion(bookType, niche, PromptType.CHAPTER_IMAGE, undefined, writingStyle);
     if (!chapterImagePrompt) {
       console.log(`⚠️ [CHAPTER ${chapterNumber}] Image prompt not found. Auto-generating...`);
-      await generatePromptsForCombo(bookType, niche);
-      chapterImagePrompt = await getPromptVersion(bookType, niche, PromptType.CHAPTER_IMAGE);
+      await generatePromptsForCombo(bookType, niche, writingStyle);
+      chapterImagePrompt = await getPromptVersion(bookType, niche, PromptType.CHAPTER_IMAGE, undefined, writingStyle);
     }
     if (!chapterImagePrompt) {
       throw new Error('Chapter image prompt not found after auto-generation');
@@ -696,7 +759,8 @@ export async function processGenerationJob(jobId: string): Promise<void> {
         book._id!.toString(),
         book.bookType,
         book.niche,
-        book.context
+        book.context,
+        (book as any).writingStyle
       );
       // Reload job to get updated outlineId
       const updatedJob = await GenerationJobModel.findById(job._id);
@@ -761,7 +825,8 @@ export async function processGenerationJob(jobId: string): Promise<void> {
           book.bookType,
           book.niche,
           book.context,
-          outline
+          outline,
+          (book as any).writingStyle
         );
       } else {
         console.log(`⏭️  [JOB ${jobId}] Chapter ${i}: Text already generated, skipping...`);
@@ -790,18 +855,28 @@ export async function processGenerationJob(jobId: string): Promise<void> {
       const textIsDone = finalChapterProgress?.text || (updatedChapterContent && updatedChapterContent.text);
 
       // Generate image prompt if text is done but image prompt is not ready
-      // Note: Actual image upload is done manually via admin API
-      if (textIsDone && !finalChapterProgress?.image && !updatedChapterContent?.imagePrompt) {
-        console.log(`🖼️  [JOB ${jobId}] Chapter ${i}: Generating image prompt...`);
-        await generateChapterImage(
-          book._id!.toString(),
-          i,
-          book.bookType,
-          book.niche,
-          outline
-        );
-      } else if (updatedChapterContent?.imagePrompt) {
-        console.log(`⏭️  [JOB ${jobId}] Chapter ${i}: Image prompt already exists, skipping...`);
+      // Skip if skipImagePrompts is enabled
+      const skipImagePrompts = book.context?.skipImagePrompts || false;
+      if (!skipImagePrompts) {
+        if (textIsDone && !finalChapterProgress?.image && !updatedChapterContent?.imagePrompt) {
+          console.log(`🖼️  [JOB ${jobId}] Chapter ${i}: Generating image prompt...`);
+          await generateChapterImage(
+            book._id!.toString(),
+            i,
+            book.bookType,
+            book.niche,
+            outline,
+            (book as any).writingStyle
+          );
+        } else if (updatedChapterContent?.imagePrompt) {
+          console.log(`⏭️  [JOB ${jobId}] Chapter ${i}: Image prompt already exists, skipping...`);
+        }
+      } else {
+        console.log(`⏭️  [JOB ${jobId}] Chapter ${i}: Skipping image prompt generation (skipImagePrompts enabled)`);
+        // Mark chapter as text_complete if image prompts are skipped
+        if (textIsDone && updatedChapterContent && updatedChapterContent.status === 'text_complete') {
+          // Keep status as text_complete - no need to change it
+        }
       }
 
       // Update job reference for next iteration

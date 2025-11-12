@@ -9,7 +9,9 @@ export enum BookType {
   INSPIRATIONAL_QUOTE_BOOK = 'inspirational_quote_book',
   VISUAL_STORY_ANTHOLOGY = 'visual_story_anthology',
   FIELD_GUIDE = 'field_guide',
-  RECIPE_DIY_BOOK = 'recipe_diy_book'
+  RECIPE_DIY_BOOK = 'recipe_diy_book',
+  PLAIN_NON_FICTION = 'plain_non_fiction',
+  FICTION_NOVEL = 'fiction_novel'
 }
 
 // Niches
@@ -24,7 +26,10 @@ export enum Niche {
   EDUCATION_CAREER = 'education_career',
   PETS_ANIMALS = 'pets_animals',
   SCI_FI_FUTURISM = 'sci_fi_futurism',
-  STORY_TELLING_FICTION = 'story_telling_fiction'
+  STORY_TELLING_FICTION = 'story_telling_fiction',
+  SELF_HELP = 'self_help',
+  INVESTIGATIVE_BIOGRAPHY = 'investigative_biography',
+  INVESTIGATIVE_CURRENT_AFFAIRS = 'investigative_current_affairs'
 }
 
 // Book Type Metadata
@@ -45,6 +50,15 @@ export interface NicheMetadata {
   focus: string;
 }
 
+// Writing Style (persisted entity)
+export interface WritingStyle {
+  _id?: string;
+  name: string;
+  description: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 // Prompt Types for different generation steps
 export enum PromptType {
   OUTLINE = 'outline',
@@ -62,6 +76,7 @@ export interface PromptVersion {
   _id?: string;
   bookType: BookType;
   niche: Niche;
+  writingStyle?: string; // Optional writing style name
   promptType: PromptType;
   version: number;
   prompt: string;
@@ -84,6 +99,9 @@ export interface BookContext {
   customArtDirection?: string;
   chapterCount?: number; // User-specified chapter count (overrides default)
   chapterSize?: 'small' | 'medium' | 'large'; // User-specified chapter size (overrides default)
+  usePerplexity?: boolean; // Enable Perplexity API for current news integration
+  perplexityTopics?: string; // Topics to include in Perplexity searches (comma-separated or newline-separated)
+  skipImagePrompts?: boolean; // Skip generating image prompts for chapters
 }
 
 // Chapter Outline Node
@@ -193,6 +211,7 @@ export interface Book {
   title: string;
   bookType: BookType;
   niche: Niche;
+  writingStyle?: string; // Writing style name (references persisted WritingStyle)
   context: BookContext;
   outlineId?: string;
   jobId?: string;
@@ -201,6 +220,7 @@ export interface Book {
   publishArtifactUrl?: string;
   coverImageUrl?: string;
   coverImagePrompt?: string;
+  publishWithoutChapterImages?: boolean; // If true, skip chapter images when publishing
   prologue?: string;
   prologuePrompt?: string;
   epilogue?: string;

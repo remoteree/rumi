@@ -16,9 +16,12 @@ const PUBLISH_DIR = path.resolve(__dirname, '../../published');
 /**
  * Check if book is ready for publishing
  * - All chapters must have text
- * - All chapters must have images uploaded
+ * - All chapters must have images uploaded (unless publishWithoutChapterImages is enabled)
  */
 export async function isBookReadyForPublishing(bookId: string): Promise<{ ready: boolean; issues: string[] }> {
+  const book = await BookModel.findById(bookId);
+  const publishWithoutChapterImages = book?.publishWithoutChapterImages || false;
+  
   const chapters = await ChapterContentModel.find({ bookId }).sort({ chapterNumber: 1 });
   
   const issues: string[] = [];
@@ -32,11 +35,14 @@ export async function isBookReadyForPublishing(bookId: string): Promise<{ ready:
     if (!chapter.text) {
       issues.push(`Chapter ${chapter.chapterNumber}: Missing text`);
     }
-    if (!chapter.imageUrl) {
+    // Skip image check if publishWithoutChapterImages is enabled
+    if (!publishWithoutChapterImages && !chapter.imageUrl) {
       issues.push(`Chapter ${chapter.chapterNumber}: Missing image`);
     }
-    if (chapter.status !== 'complete') {
-      issues.push(`Chapter ${chapter.chapterNumber}: Status is ${chapter.status} (should be complete)`);
+    // Status check: allow 'text_complete' if images are disabled, otherwise require 'complete'
+    const requiredStatus = publishWithoutChapterImages ? 'text_complete' : 'complete';
+    if (chapter.status !== requiredStatus && chapter.status !== 'complete') {
+      issues.push(`Chapter ${chapter.chapterNumber}: Status is ${chapter.status} (should be ${requiredStatus} or complete)`);
     }
   }
 
@@ -163,10 +169,13 @@ export async function generateEPUB(bookId: string): Promise<string> {
     }
   }
 
-  // 4. Copy chapter images from local storage to EPUB
+  // 4. Copy chapter images from local storage to EPUB (skip if publishWithoutChapterImages is enabled)
   const imageRefs: string[] = [];
-  for (const chapter of chapters) {
-    if (chapter.imageUrl) {
+  const publishWithoutChapterImages = book.publishWithoutChapterImages || false;
+  
+  if (!publishWithoutChapterImages) {
+    for (const chapter of chapters) {
+      if (chapter.imageUrl) {
       try {
         let imageData: Buffer;
         let mimeType = 'image/jpeg';
@@ -228,6 +237,9 @@ export async function generateEPUB(bookId: string): Promise<string> {
         // Continue without image
       }
     }
+    }
+  } else {
+    console.log(`ℹ️ Publishing without chapter images (publishWithoutChapterImages is enabled)`);
   }
 
   // 5. Create cover page and initialize contentFiles
@@ -269,7 +281,10 @@ export async function generateEPUB(bookId: string): Promise<string> {
   await fs.writeFile(path.join(oebpsDir, 'title.xhtml'), titlePageHtml);
   contentFiles.push('title.xhtml');
 
-  // 7. Create prologue if exists
+  // 7. Create table of contents page (after chapters are processed, we'll regenerate with correct file names)
+  // We'll create a placeholder TOC here and update it after chapters are created
+
+  // 8. Create prologue if exists
   if (book.prologue) {
     // Remove "Prologue" heading if content starts with it
     let prologueContent = book.prologue.trim();
@@ -299,12 +314,12 @@ export async function generateEPUB(bookId: string): Promise<string> {
     contentFiles.push('prologue.xhtml');
   }
 
-  // 8. Create chapter HTML files
+  // 9. Create chapter HTML files
   const chapterFiles: string[] = [];
   for (const chapter of chapters) {
     const chapterTitle = outline.structure.chapters.find(c => c.chapterNumber === chapter.chapterNumber)?.title || `Chapter ${chapter.chapterNumber}`;
     const imageExt = chapter.imageUrl?.includes('png') ? 'png' : 'jpg';
-    const hasImage = chapter.imageUrl && imageRefs.some(ref => ref.includes(`chapter_${chapter.chapterNumber}`));
+    const hasImage = !publishWithoutChapterImages && chapter.imageUrl && imageRefs.some(ref => ref.includes(`chapter_${chapter.chapterNumber}`));
     
     // Remove chapter title if content starts with it
     let chapterText = (chapter.text || '').trim();
@@ -428,7 +443,43 @@ export async function generateEPUB(bookId: string): Promise<string> {
     contentFiles.push(chapterFileName);
   }
 
-  // 9. Create epilogue if exists
+  // 10. Create table of contents page (now that we have chapter files)
+  const tocItems: string[] = [];
+  if (book.prologue) {
+    tocItems.push('<li><a href="prologue.xhtml">Prologue</a></li>');
+  }
+  for (let i = 0; i < chapters.length; i++) {
+    const chapter = chapters[i];
+    const chapterTitle = outline.structure.chapters.find(c => c.chapterNumber === chapter.chapterNumber)?.title || `Chapter ${chapter.chapterNumber}`;
+    const chapterFileName = chapterFiles[i];
+    tocItems.push(`<li><a href="${chapterFileName}">Chapter ${chapter.chapterNumber}: ${escapeXml(chapterTitle)}</a></li>`);
+  }
+  if (book.epilogue) {
+    tocItems.push('<li><a href="epilogue.xhtml">Epilogue</a></li>');
+  }
+
+  const tocHtml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>Table of Contents</title>
+  <link rel="stylesheet" type="text/css" href="styles/style.css"/>
+</head>
+<body>
+  <div class="title-page">
+    <h1>Table of Contents</h1>
+    <nav class="toc">
+      <ol>
+        ${tocItems.join('\n        ')}
+      </ol>
+    </nav>
+  </div>
+</body>
+</html>`;
+  await fs.writeFile(path.join(oebpsDir, 'toc.xhtml'), tocHtml);
+  contentFiles.push('toc.xhtml');
+
+  // 11. Create epilogue if exists
   if (book.epilogue) {
     const epilogueHtml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
@@ -451,7 +502,7 @@ export async function generateEPUB(bookId: string): Promise<string> {
     contentFiles.push('epilogue.xhtml');
   }
 
-  // 10. Create CSS file with professional Kindle-optimized styling
+  // 12. Create CSS file with professional Kindle-optimized styling
   const cssContent = `/* Kindle-optimized EPUB Stylesheet */
 @page {
   margin: 0;
@@ -693,6 +744,37 @@ h3 + .chapter-image {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* Table of Contents */
+.toc {
+  margin: 2em 0;
+}
+
+.toc ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc li {
+  margin: 0.8em 0;
+  padding-left: 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.toc a {
+  color: #007bff;
+  text-decoration: none;
+  font-size: 1.1em;
+  line-height: 1.6;
+  display: block;
+  padding: 0.3em 0;
+}
+
+.toc a:hover {
+  text-decoration: underline;
+}
+
 /* Chapter content */
 .chapter-content {
   text-align: justify;
@@ -876,7 +958,7 @@ p, li {
 }`;
   await fs.writeFile(path.join(oebpsDir, 'styles', 'style.css'), cssContent);
 
-  // 11. Create content.opf (package document) with improved metadata
+  // 13. Create content.opf (package document) with improved metadata
   const now = new Date().toISOString();
   const uuid = `urn:uuid:${bookId}-${Date.now()}`;
   const opfContent = `<?xml version="1.0" encoding="UTF-8"?>
@@ -900,6 +982,7 @@ p, li {
     ${coverImageRef ? `<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml" properties="cover-image"/>
     <item id="cover-image" href="${coverImageRef}" media-type="${coverImageRef.endsWith('.png') ? 'image/png' : coverImageRef.endsWith('.gif') ? 'image/gif' : 'image/jpeg'}" properties="cover-image"/>` : ''}
     <item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>
+    <item id="toc" href="toc.xhtml" media-type="application/xhtml+xml"/>
     ${book.prologue ? '<item id="prologue" href="prologue.xhtml" media-type="application/xhtml+xml"/>' : ''}
     ${chapterFiles.map((file, idx) => 
       `<item id="chapter${idx + 1}" href="${file}" media-type="application/xhtml+xml"/>`
@@ -914,6 +997,7 @@ p, li {
   <spine toc="nav">
     ${coverImageRef ? '<itemref idref="cover"/>' : ''}
     <itemref idref="title"/>
+    <itemref idref="toc"/>
     ${book.prologue ? '<itemref idref="prologue"/>' : ''}
     ${chapterFiles.map((_, idx) => `<itemref idref="chapter${idx + 1}"/>`).join('\n    ')}
     ${book.epilogue ? '<itemref idref="epilogue"/>' : ''}
@@ -921,7 +1005,7 @@ p, li {
 </package>`;
   await fs.writeFile(path.join(oebpsDir, 'content.opf'), opfContent);
 
-  // 9. Create nav.xhtml (navigation document) with improved formatting
+  // 14. Create nav.xhtml (navigation document) with improved formatting
   const navContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
@@ -945,7 +1029,7 @@ p, li {
 </html>`;
   await fs.writeFile(path.join(oebpsDir, 'nav.xhtml'), navContent);
 
-  // 8. Create EPUB file (ZIP archive)
+  // 15. Create EPUB file (ZIP archive)
   // Ensure publish directory exists
   await fs.mkdir(PUBLISH_DIR, { recursive: true });
   

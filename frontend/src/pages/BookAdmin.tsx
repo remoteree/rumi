@@ -36,6 +36,7 @@ export default function BookAdmin() {
   const [editingCoverPrompt, setEditingCoverPrompt] = useState(false);
   const [coverPromptValue, setCoverPromptValue] = useState('');
   const [generatingCoverPrompt, setGeneratingCoverPrompt] = useState(false);
+  const [publishWithoutChapterImages, setPublishWithoutChapterImages] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -59,6 +60,7 @@ export default function BookAdmin() {
       if (bookResult.success && bookResult.data) {
         setBook(bookResult.data);
         setCoverPromptValue(bookResult.data.coverImagePrompt || '');
+        setPublishWithoutChapterImages(bookResult.data.publishWithoutChapterImages || false);
       }
 
       const chaptersResult = await adminApi.getChapters(bookId);
@@ -188,22 +190,34 @@ export default function BookAdmin() {
     return tokenUsage.reduce((sum, usage) => sum + (usage.totalTokens || 0), 0);
   };
 
-  const handlePublish = async () => {
-    if (!publishStatus?.ready || !id) {
-      alert('Book is not ready for publishing. Please check all chapters are complete with images uploaded.');
-      return;
-    }
-
+  const handlePublish = async (force: boolean = false) => {
+    if (!id) return;
     const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
     if (!bookId) return;
 
-    if (!confirm(`Publish "${book?.title}"? This will generate an EPUB file ready for Kindle publishing.`)) {
+    if (!publishStatus?.ready && !force) {
+      const shouldForce = confirm(
+        `Book is not ready for publishing (${publishStatus?.issues.length || 0} issues).\n\n` +
+        `Issues:\n${publishStatus?.issues.slice(0, 5).join('\n')}${publishStatus?.issues.length > 5 ? `\n...and ${publishStatus.issues.length - 5} more` : ''}\n\n` +
+        `Do you want to publish anyway?`
+      );
+      if (shouldForce) {
+        return handlePublish(true);
+      }
+      return;
+    }
+
+    const confirmMessage = force 
+      ? `Publish "${book?.title}" despite ${publishStatus?.issues.length || 0} issues? This will generate an EPUB file, but some content may be missing.`
+      : `Publish "${book?.title}"? This will generate an EPUB file ready for Kindle publishing.`;
+
+    if (!confirm(confirmMessage)) {
       return;
     }
 
     setPublishing(true);
     try {
-      const result = await booksApi.publish(bookId);
+      const result = await booksApi.publish(bookId, force);
       if (result.success) {
         alert('Book published successfully! Download will start automatically.');
         await booksApi.downloadPublished(bookId);
@@ -302,6 +316,27 @@ export default function BookAdmin() {
     }
   };
 
+  const handleTogglePublishWithoutChapterImages = async (checked: boolean) => {
+    if (!id) return;
+    const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+    if (!bookId) return;
+    
+    setSaving(true);
+    try {
+      await adminApi.updatePublishWithoutChapterImages(bookId, checked);
+      setPublishWithoutChapterImages(checked);
+      await loadData(); // Reload to refresh publish status
+      alert('Setting updated successfully!');
+    } catch (error: any) {
+      console.error('Failed to update setting:', error);
+      alert('Failed to update setting');
+      // Revert checkbox state on error
+      setPublishWithoutChapterImages(!checked);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return <div className="container">Loading...</div>;
   }
@@ -321,8 +356,18 @@ export default function BookAdmin() {
                 if (bookId) booksApi.downloadPublished(bookId);
               }}
               className="btn btn-primary"
+              style={{ marginRight: '0.5rem' }}
             >
               📥 Download EPUB
+            </button>
+            <button
+              onClick={() => {
+                const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                if (bookId) booksApi.exportDOCX(bookId);
+              }}
+              className="btn btn-primary"
+            >
+              📄 Export as DOCX
             </button>
             {publishStatus?.ready && (
               <button
@@ -335,20 +380,124 @@ export default function BookAdmin() {
             )}
           </>
         )}
-        {publishStatus?.ready && book?.status !== 'published' && (
-          <button
-            onClick={handlePublish}
-            className="btn btn-success"
-            disabled={publishing}
-          >
-            {publishing ? 'Publishing...' : '📚 Publish Book'}
-          </button>
+        {book?.status !== 'published' && (
+          <>
+            {publishStatus?.ready ? (
+              <button
+                onClick={() => handlePublish(false)}
+                className="btn btn-success"
+                disabled={publishing}
+                style={{ marginRight: '0.5rem' }}
+              >
+                {publishing ? 'Publishing...' : '📚 Publish Book'}
+              </button>
+            ) : (
+              <>
+                <span className="badge badge-warning" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem', marginRight: '0.5rem' }}>
+                  ⚠️ Not Ready ({publishStatus?.issues.length || 0} issues)
+                </span>
+                <button
+                  onClick={() => handlePublish(true)}
+                  className="btn btn-warning"
+                  disabled={publishing}
+                  title="Publish despite issues"
+                  style={{ marginRight: '0.5rem' }}
+                >
+                  {publishing ? 'Publishing...' : '⚠️ Publish Anyway'}
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => {
+                const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                if (bookId) booksApi.exportDOCX(bookId);
+              }}
+              className="btn btn-primary"
+              title="Export book as Word document"
+            >
+              📄 Export as DOCX
+            </button>
+          </>
         )}
-        {publishStatus && !publishStatus.ready && (
-          <span className="badge badge-warning" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}>
-            ⚠️ Not Ready ({publishStatus.issues.length} issues)
-          </span>
-        )}
+      </div>
+
+      {/* Table of Contents */}
+      {book?.outlineId && (book.outlineId as any)?.structure?.chapters && (
+        <div className="card" style={{ marginBottom: '2rem' }}>
+          <h2 style={{ marginTop: 0 }}>📑 Table of Contents</h2>
+          <div style={{ marginTop: '1rem' }}>
+            {book.prologue && (
+              <div style={{ padding: '0.5rem 0', borderBottom: '1px solid #eee' }}>
+                <strong>Prologue</strong>
+              </div>
+            )}
+            {(book.outlineId as any).structure.chapters.map((chapter: any) => (
+              <div
+                key={chapter.chapterNumber}
+                style={{
+                  padding: '0.75rem 0',
+                  borderBottom: '1px solid #eee',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+                onClick={() => {
+                  const chapterData = chapters.find(c => c.chapterNumber === chapter.chapterNumber);
+                  if (chapterData) {
+                    handleChapterClick(chapterData);
+                  }
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.backgroundColor = '#f8f9fa';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                }}
+              >
+                <div>
+                  <strong>Chapter {chapter.chapterNumber}: {chapter.title}</strong>
+                  {chapter.summary && (
+                    <div style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.25rem' }}>
+                      {chapter.summary.length > 100 ? `${chapter.summary.substring(0, 100)}...` : chapter.summary}
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#999' }}>
+                  {chapters.find(c => c.chapterNumber === chapter.chapterNumber)?.text ? '✅' : '⏳'}
+                </div>
+              </div>
+            ))}
+            {book.epilogue && (
+              <div style={{ padding: '0.5rem 0', borderBottom: '1px solid #eee' }}>
+                <strong>Epilogue</strong>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Publish Settings */}
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <h2 style={{ marginTop: 0 }}>⚙️ Publish Settings</h2>
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={publishWithoutChapterImages}
+              onChange={(e) => handleTogglePublishWithoutChapterImages(e.target.checked)}
+              disabled={saving}
+              style={{ width: 'auto', cursor: 'pointer' }}
+            />
+            <span>
+              <strong>Publish without chapter images</strong>
+            </span>
+          </label>
+          <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem', marginLeft: '1.5rem' }}>
+            When enabled, the EPUB will be published without chapter images. Chapters only need text to be complete.
+            Cover image will still be included if available.
+          </small>
+        </div>
       </div>
 
       {/* Cover Image Section */}
