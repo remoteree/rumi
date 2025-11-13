@@ -48,6 +48,7 @@ export default function BookAdmin() {
   const [forceRegenerate, setForceRegenerate] = useState(false);
   const [regeneratingChapter, setRegeneratingChapter] = useState<number | null>(null);
   const [processingAudio, setProcessingAudio] = useState(false);
+  const [generatingCredits, setGeneratingCredits] = useState<'opening' | 'closing' | 'sample' | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -700,6 +701,126 @@ export default function BookAdmin() {
             )}
             {(audiobookStatus.status === 'complete' || audiobookStatus.status === 'failed' || audiobookStatus.status === 'cancelled') && (
               <div style={{ marginTop: '1rem' }}>
+                {/* Credits and Sample Generation */}
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '4px' }}>
+                  <p style={{ marginTop: 0, marginBottom: '0.75rem' }}><strong>🎬 Generate Credits & Sample:</strong></p>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={async () => {
+                        if (!audiobookStatus) return;
+                        const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                        if (!bookId) return;
+
+                        setGeneratingCredits('opening');
+                        try {
+                          await booksApi.generateOpeningCredits(
+                            bookId,
+                            audiobookStatus.voice,
+                            audiobookStatus.model
+                          );
+                          alert('Opening credits generated successfully!');
+                        } catch (error: any) {
+                          console.error('Failed to generate opening credits:', error);
+                          alert(`Failed to generate opening credits: ${error.response?.data?.error || error.message}`);
+                        } finally {
+                          setGeneratingCredits(null);
+                        }
+                      }}
+                      className="btn btn-primary"
+                      disabled={generatingCredits !== null}
+                      style={{ fontSize: '0.875rem' }}
+                    >
+                      {generatingCredits === 'opening' ? '⏳ Generating...' : '🎬 Opening Credits'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!audiobookStatus) return;
+                        const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                        if (!bookId) return;
+
+                        setGeneratingCredits('closing');
+                        try {
+                          await booksApi.generateClosingCredits(
+                            bookId,
+                            audiobookStatus.voice,
+                            audiobookStatus.model
+                          );
+                          alert('Closing credits generated successfully!');
+                        } catch (error: any) {
+                          console.error('Failed to generate closing credits:', error);
+                          alert(`Failed to generate closing credits: ${error.response?.data?.error || error.message}`);
+                        } finally {
+                          setGeneratingCredits(null);
+                        }
+                      }}
+                      className="btn btn-primary"
+                      disabled={generatingCredits !== null}
+                      style={{ fontSize: '0.875rem' }}
+                    >
+                      {generatingCredits === 'closing' ? '⏳ Generating...' : '🎬 Closing Credits'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!audiobookStatus) return;
+                        const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                        if (!bookId) return;
+
+                        setGeneratingCredits('sample');
+                        try {
+                          await booksApi.generateRetailSample(
+                            bookId,
+                            audiobookStatus.voice,
+                            audiobookStatus.model
+                          );
+                          alert('Retail sample generated successfully!');
+                        } catch (error: any) {
+                          console.error('Failed to generate retail sample:', error);
+                          alert(`Failed to generate retail sample: ${error.response?.data?.error || error.message}`);
+                        } finally {
+                          setGeneratingCredits(null);
+                        }
+                      }}
+                      className="btn btn-primary"
+                      disabled={generatingCredits !== null}
+                      style={{ fontSize: '0.875rem' }}
+                    >
+                      {generatingCredits === 'sample' ? '⏳ Generating...' : '🎬 Retail Sample'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                    <button
+                      onClick={() => {
+                        const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                        if (bookId) booksApi.downloadOpeningCredits(bookId);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.875rem' }}
+                    >
+                      📥 Opening Credits
+                    </button>
+                    <button
+                      onClick={() => {
+                        const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                        if (bookId) booksApi.downloadClosingCredits(bookId);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.875rem' }}
+                    >
+                      📥 Closing Credits
+                    </button>
+                    <button
+                      onClick={() => {
+                        const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                        if (bookId) booksApi.downloadRetailSample(bookId);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.875rem' }}
+                    >
+                      📥 Retail Sample
+                    </button>
+                  </div>
+                </div>
+
                 <p><strong>Audio Files:</strong></p>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
                   {book?.prologue && (

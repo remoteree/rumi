@@ -1227,3 +1227,159 @@ export async function processBookAudioFiles(bookId: string): Promise<{
   return { processed, failed };
 }
 
+/**
+ * Generate opening credits audio
+ * "This book is [title] narrated under direction of the author"
+ */
+export async function generateOpeningCredits(
+  bookId: string,
+  voice: string,
+  model: 'tts-1' | 'tts-1-hd'
+): Promise<string> {
+  const book = await BookModel.findById(bookId);
+  if (!book) {
+    throw new Error('Book not found');
+  }
+
+  const text = `This book is ${book.title}, narrated under direction of the author.`;
+  
+  console.log(`🎙️  [AUDIOBOOK] Generating opening credits...`);
+  console.log(`   Text: "${text}"`);
+
+  // Generate audio
+  const audioBuffer = await generateAudioChunk(text, voice, model);
+  
+  // Save raw audio
+  const audioDir = path.join(AUDIO_DIR, bookId);
+  await fs.mkdir(audioDir, { recursive: true });
+  
+  const rawAudioPath = path.join(audioDir, 'opening_credits_raw.mp3');
+  await fs.writeFile(rawAudioPath, audioBuffer);
+
+  // Process with ffmpeg
+  const finalAudioPath = path.join(audioDir, 'opening_credits.mp3');
+  await processAudioFileWithFFmpeg(rawAudioPath, finalAudioPath);
+  
+  // Remove raw file
+  await fs.unlink(rawAudioPath);
+
+  console.log(`✅ [AUDIOBOOK] Opening credits saved: ${finalAudioPath}`);
+  
+  return finalAudioPath;
+}
+
+/**
+ * Generate closing credits audio
+ * "This has been [title]. Thank you for listening."
+ */
+export async function generateClosingCredits(
+  bookId: string,
+  voice: string,
+  model: 'tts-1' | 'tts-1-hd'
+): Promise<string> {
+  const book = await BookModel.findById(bookId);
+  if (!book) {
+    throw new Error('Book not found');
+  }
+
+  const text = `This has been ${book.title}. Thank you for listening.`;
+  
+  console.log(`🎙️  [AUDIOBOOK] Generating closing credits...`);
+  console.log(`   Text: "${text}"`);
+
+  // Generate audio
+  const audioBuffer = await generateAudioChunk(text, voice, model);
+  
+  // Save raw audio
+  const audioDir = path.join(AUDIO_DIR, bookId);
+  await fs.mkdir(audioDir, { recursive: true });
+  
+  const rawAudioPath = path.join(audioDir, 'closing_credits_raw.mp3');
+  await fs.writeFile(rawAudioPath, audioBuffer);
+
+  // Process with ffmpeg
+  const finalAudioPath = path.join(audioDir, 'closing_credits.mp3');
+  await processAudioFileWithFFmpeg(rawAudioPath, finalAudioPath);
+  
+  // Remove raw file
+  await fs.unlink(rawAudioPath);
+
+  console.log(`✅ [AUDIOBOOK] Closing credits saved: ${finalAudioPath}`);
+  
+  return finalAudioPath;
+}
+
+/**
+ * Generate retail sample (2-minute snippet from chapter 2)
+ */
+export async function generateRetailSample(
+  bookId: string,
+  voice: string,
+  model: 'tts-1' | 'tts-1-hd'
+): Promise<string> {
+  const book = await BookModel.findById(bookId);
+  if (!book) {
+    throw new Error('Book not found');
+  }
+
+  // Get chapter 2
+  const chapter = await ChapterContentModel.findOne({ bookId, chapterNumber: 2 });
+  if (!chapter || !chapter.text) {
+    throw new Error('Chapter 2 not found or has no text');
+  }
+
+  console.log(`🎙️  [AUDIOBOOK] Generating retail sample from chapter 2...`);
+
+  // Generate full chapter audio first (if not exists)
+  const chapterAudioPath = path.join(AUDIO_DIR, bookId, 'chapter_2.mp3');
+  const chapterExists = await chapterAudioExists(bookId, 2);
+  
+  if (!chapterExists) {
+    console.log(`   Chapter 2 audio not found, generating...`);
+    // Create a temporary job for tracking
+    const { AudiobookJobModel } = await import('../models/AudiobookJob');
+    let job = await AudiobookJobModel.findOne({ bookId }).sort({ createdAt: -1 });
+    
+    if (!job) {
+      job = new AudiobookJobModel({
+        bookId,
+        voice,
+        model,
+        status: 'generating'
+      });
+      await job.save();
+    }
+    
+    await generateChapterAudio(bookId, 2, voice, model, job._id!.toString(), false);
+  }
+
+  // Extract first 2 minutes (120 seconds) using ffmpeg
+  const audioDir = path.join(AUDIO_DIR, bookId);
+  const samplePath = path.join(audioDir, 'retail_sample_raw.mp3');
+  const finalSamplePath = path.join(audioDir, 'retail_sample.mp3');
+
+  // Extract 2 minutes - use proper re-encoding instead of copy to ensure clean cut
+  const extractCommand = `ffmpeg -i "${chapterAudioPath}" -t 120 -codec:a libmp3lame "${samplePath}"`;
+  
+  console.log(`   Extracting first 2 minutes from chapter 2...`);
+  try {
+    const { stdout, stderr } = await execAsync(extractCommand);
+    if (stderr && !stderr.includes('Stream mapping') && !stderr.includes('Press [q]')) {
+      console.log(`   FFmpeg output: ${stderr}`);
+    }
+  } catch (error: any) {
+    console.error(`❌ [AUDIOBOOK] Error extracting sample:`, error.message);
+    throw new Error(`Failed to extract sample: ${error.message}`);
+  }
+
+  // Process with ffmpeg (normalize RMS, sample rate, etc.)
+  await processAudioFileWithFFmpeg(samplePath, finalSamplePath);
+  
+  // Remove raw sample file
+  await fs.unlink(samplePath);
+
+  console.log(`✅ [AUDIOBOOK] Retail sample saved: ${finalSamplePath}`);
+  
+  return finalSamplePath;
+}
+

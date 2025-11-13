@@ -778,6 +778,111 @@ router.post('/:id/audiobook/process-audio', async (req, res) => {
   }
 });
 
+// Generate opening credits
+router.post('/:id/audiobook/generate-opening-credits', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const { voice, model } = req.body;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    if (!voice) {
+      return res.status(400).json({ success: false, error: 'Voice is required' });
+    }
+
+    const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    if (!validVoices.includes(voice)) {
+      return res.status(400).json({ success: false, error: 'Invalid voice' });
+    }
+
+    const ttsModel = (model === 'tts-1-hd' ? 'tts-1-hd' : 'tts-1') as 'tts-1' | 'tts-1-hd';
+
+    const { generateOpeningCredits } = await import('../services/audiobookService');
+    const audioPath = await generateOpeningCredits(bookId, voice, ttsModel);
+
+    res.json({
+      success: true,
+      message: 'Opening credits generated successfully',
+      data: { audioPath }
+    });
+  } catch (error: any) {
+    console.error('Error generating opening credits:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Generate closing credits
+router.post('/:id/audiobook/generate-closing-credits', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const { voice, model } = req.body;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    if (!voice) {
+      return res.status(400).json({ success: false, error: 'Voice is required' });
+    }
+
+    const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    if (!validVoices.includes(voice)) {
+      return res.status(400).json({ success: false, error: 'Invalid voice' });
+    }
+
+    const ttsModel = (model === 'tts-1-hd' ? 'tts-1-hd' : 'tts-1') as 'tts-1' | 'tts-1-hd';
+
+    const { generateClosingCredits } = await import('../services/audiobookService');
+    const audioPath = await generateClosingCredits(bookId, voice, ttsModel);
+
+    res.json({
+      success: true,
+      message: 'Closing credits generated successfully',
+      data: { audioPath }
+    });
+  } catch (error: any) {
+    console.error('Error generating closing credits:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Generate retail sample
+router.post('/:id/audiobook/generate-retail-sample', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const { voice, model } = req.body;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    if (!voice) {
+      return res.status(400).json({ success: false, error: 'Voice is required' });
+    }
+
+    const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    if (!validVoices.includes(voice)) {
+      return res.status(400).json({ success: false, error: 'Invalid voice' });
+    }
+
+    const ttsModel = (model === 'tts-1-hd' ? 'tts-1-hd' : 'tts-1') as 'tts-1' | 'tts-1-hd';
+
+    const { generateRetailSample } = await import('../services/audiobookService');
+    const audioPath = await generateRetailSample(bookId, voice, ttsModel);
+
+    res.json({
+      success: true,
+      message: 'Retail sample generated successfully',
+      data: { audioPath }
+    });
+  } catch (error: any) {
+    console.error('Error generating retail sample:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Cancel audiobook generation
 router.post('/:id/audiobook/cancel', async (req, res) => {
   try {
@@ -900,6 +1005,141 @@ router.get('/:id/audiobook/prologue', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Error downloading prologue audio:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Download opening credits audio
+router.get('/:id/audiobook/opening-credits', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    const pathLib = await import('path');
+    const { fileURLToPath } = await import('url');
+    const fsLib = await import('fs/promises');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = pathLib.dirname(__filename);
+    const audioFilePath = pathLib.resolve(__dirname, '../uploads/audio/books', bookId, 'opening_credits.mp3');
+
+    try {
+      await fsLib.access(audioFilePath);
+    } catch {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Opening credits audio not found' 
+      });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', 'attachment; filename="opening_credits.mp3"');
+    
+    const fsSync = await import('fs');
+    const fileStream = fsSync.createReadStream(audioFilePath);
+    fileStream.pipe(res);
+
+    fileStream.on('error', (error: any) => {
+      console.error('Error streaming audio file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: 'Error streaming file' });
+      }
+    });
+  } catch (error: any) {
+    console.error('Error downloading opening credits audio:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Download closing credits audio
+router.get('/:id/audiobook/closing-credits', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    const pathLib = await import('path');
+    const { fileURLToPath } = await import('url');
+    const fsLib = await import('fs/promises');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = pathLib.dirname(__filename);
+    const audioFilePath = pathLib.resolve(__dirname, '../uploads/audio/books', bookId, 'closing_credits.mp3');
+
+    try {
+      await fsLib.access(audioFilePath);
+    } catch {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Closing credits audio not found' 
+      });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', 'attachment; filename="closing_credits.mp3"');
+    
+    const fsSync = await import('fs');
+    const fileStream = fsSync.createReadStream(audioFilePath);
+    fileStream.pipe(res);
+
+    fileStream.on('error', (error: any) => {
+      console.error('Error streaming audio file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: 'Error streaming file' });
+      }
+    });
+  } catch (error: any) {
+    console.error('Error downloading closing credits audio:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Download retail sample audio
+router.get('/:id/audiobook/retail-sample', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    const pathLib = await import('path');
+    const { fileURLToPath } = await import('url');
+    const fsLib = await import('fs/promises');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = pathLib.dirname(__filename);
+    const audioFilePath = pathLib.resolve(__dirname, '../uploads/audio/books', bookId, 'retail_sample.mp3');
+
+    try {
+      await fsLib.access(audioFilePath);
+    } catch {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Retail sample audio not found' 
+      });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', 'attachment; filename="retail_sample.mp3"');
+    
+    const fsSync = await import('fs');
+    const fileStream = fsSync.createReadStream(audioFilePath);
+    fileStream.pipe(res);
+
+    fileStream.on('error', (error: any) => {
+      console.error('Error streaming audio file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: 'Error streaming file' });
+      }
+    });
+  } catch (error: any) {
+    console.error('Error downloading retail sample audio:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

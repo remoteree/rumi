@@ -117,6 +117,39 @@ export const booksApi = {
       `/books/${id}/audiobook/process-audio`
     );
     return res.data;
+  },
+  generateOpeningCredits: async (id: string, voice: string, model: 'tts-1' | 'tts-1-hd') => {
+    const res = await client.post<ApiResponse<{ audioPath: string }>>(
+      `/books/${id}/audiobook/generate-opening-credits`,
+      { voice, model }
+    );
+    return res.data;
+  },
+  generateClosingCredits: async (id: string, voice: string, model: 'tts-1' | 'tts-1-hd') => {
+    const res = await client.post<ApiResponse<{ audioPath: string }>>(
+      `/books/${id}/audiobook/generate-closing-credits`,
+      { voice, model }
+    );
+    return res.data;
+  },
+  generateRetailSample: async (id: string, voice: string, model: 'tts-1' | 'tts-1-hd') => {
+    const res = await client.post<ApiResponse<{ audioPath: string }>>(
+      `/books/${id}/audiobook/generate-retail-sample`,
+      { voice, model }
+    );
+    return res.data;
+  },
+  downloadOpeningCredits: async (id: string) => {
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    window.open(`${API_BASE_URL}/books/${id}/audiobook/opening-credits`, '_blank');
+  },
+  downloadClosingCredits: async (id: string) => {
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    window.open(`${API_BASE_URL}/books/${id}/audiobook/closing-credits`, '_blank');
+  },
+  downloadRetailSample: async (id: string) => {
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    window.open(`${API_BASE_URL}/books/${id}/audiobook/retail-sample`, '_blank');
   }
 };
 
