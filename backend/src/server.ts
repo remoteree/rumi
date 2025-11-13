@@ -72,6 +72,16 @@ app.use('/api/images', express.static(UPLOADS_DIR, {
   }
 }));
 
+// Serve uploaded audio files statically
+const AUDIO_DIR = path.resolve(__dirname, 'uploads/audio');
+app.use('/api/audio', express.static(AUDIO_DIR, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.mp3')) {
+      res.setHeader('Content-Type', 'audio/mpeg');
+    }
+  }
+}));
+
 // Routes
 app.use('/api/books', booksRouter);
 app.use('/api/prompts', promptsRouter);

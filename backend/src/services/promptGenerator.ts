@@ -296,6 +296,7 @@ Requirements:
 - Reference previous chapter concept if this is not chapter 1
 - Include takeaways or exercises if appropriate for this book type
 - If current news is provided above, naturally incorporate relevant recent examples, trends, or developments where appropriate, but maintain focus on explaining concepts using OpenAI's capabilities
+- CRITICAL: Never claim first-hand experience. Avoid phrases like "I spoke to", "I met", "I interviewed", "I witnessed", "I saw", "I experienced", "I visited", "I talked with", or any other claims of direct personal experience. Write from a third-person perspective or use general observations and research-based information instead.
 
 Output: Markdown formatted chapter text matching the target word count and following all style guidelines${writingStyle ? `, written in the "${writingStyle.name}" writing style` : ''}.`,
     variables: [
@@ -380,6 +381,7 @@ The prologue should:
 - Match the style guide (tone, voice, lexical preferences)${writingStyle ? `\n- CRITICAL: Be written in the "${writingStyle.name}" writing style. This is the primary writing style requirement.` : ''}
 - Be appropriate length for the book type (typically 300-800 words)
 - Provide context or background if needed
+- CRITICAL: Never claim first-hand experience. Avoid phrases like "I spoke to", "I met", "I interviewed", "I witnessed", "I saw", "I experienced", "I visited", "I talked with", or any other claims of direct personal experience. Write from a third-person perspective or use general observations and research-based information instead.
 
 Output the prologue text in the same format/style as the chapters${writingStyle ? `, written in the "${writingStyle.name}" writing style` : ''}.`,
     variables: ['{{BOOK_CONTEXT}}', '{{STYLE_GUIDE}}', '{{OUTLINE_SUMMARY}}']
@@ -410,6 +412,7 @@ The epilogue should:
 - Match the style guide (tone, voice, lexical preferences)${writingStyle ? `\n- CRITICAL: Be written in the "${writingStyle.name}" writing style. This is the primary writing style requirement.` : ''}
 - Be appropriate length for the book type (typically 300-800 words)
 - End on a positive, inspiring note when appropriate
+- CRITICAL: Never claim first-hand experience. Avoid phrases like "I spoke to", "I met", "I interviewed", "I witnessed", "I saw", "I experienced", "I visited", "I talked with", or any other claims of direct personal experience. Write from a third-person perspective or use general observations and research-based information instead.
 
 Output the epilogue text in the same format/style as the chapters${writingStyle ? `, written in the "${writingStyle.name}" writing style` : ''}.`,
     variables: ['{{BOOK_CONTEXT}}', '{{STYLE_GUIDE}}', '{{OUTLINE_SUMMARY}}']

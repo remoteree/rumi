@@ -512,5 +512,442 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Estimate audiobook cost
+router.get('/:id/audiobook/estimate', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const voice = req.query.voice as string || 'alloy';
+    const model = (req.query.model as 'tts-1' | 'tts-1-hd') || 'tts-1';
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    if (!validVoices.includes(voice)) {
+      return res.status(400).json({ success: false, error: 'Invalid voice. Must be one of: ' + validVoices.join(', ') });
+    }
+
+    const { estimateAudiobookCost } = await import('../services/audiobookService');
+    const estimate = await estimateAudiobookCost(bookId, voice, model);
+
+    res.json({
+      success: true,
+      data: estimate
+    });
+  } catch (error: any) {
+    console.error('Error estimating audiobook cost:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Generate audiobook (queue job)
+router.post('/:id/audiobook/generate', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const { voice, model, forceRegenerate } = req.body;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    if (!voice) {
+      return res.status(400).json({ success: false, error: 'Voice is required' });
+    }
+
+    const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    if (!validVoices.includes(voice)) {
+      return res.status(400).json({ success: false, error: 'Invalid voice. Must be one of: ' + validVoices.join(', ') });
+    }
+
+    const ttsModel = (model === 'tts-1-hd' ? 'tts-1-hd' : 'tts-1') as 'tts-1' | 'tts-1-hd';
+
+    const book = await BookModel.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ success: false, error: 'Book not found' });
+    }
+
+    // Check if book is complete
+    if (book.status !== 'complete') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Book must be complete before generating audiobook' 
+      });
+    }
+
+    // Check if audiobook job already exists (unless force regenerating)
+    const { AudiobookJobModel } = await import('../models/AudiobookJob');
+    if (!forceRegenerate) {
+      const existingJob = await AudiobookJobModel.findOne({ 
+        bookId, 
+        status: { $in: ['pending', 'generating'] } 
+      });
+
+      if (existingJob) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Audiobook generation is already in progress for this book' 
+        });
+      }
+    }
+
+    // Estimate cost
+    const { estimateAudiobookCost } = await import('../services/audiobookService');
+    const estimate = await estimateAudiobookCost(bookId, voice, ttsModel);
+
+    // Create audiobook job
+    const audiobookJob = new AudiobookJobModel({
+      bookId,
+      voice,
+      model: ttsModel,
+      status: 'pending',
+      estimatedCost: estimate.estimatedCost,
+      totalChapters: estimate.chapterBreakdown.length
+    });
+
+    await audiobookJob.save();
+
+    res.json({
+      success: true,
+      message: 'Audiobook generation queued',
+      data: {
+        jobId: audiobookJob._id,
+        estimatedCost: estimate.estimatedCost,
+        totalChapters: estimate.chapterBreakdown.length
+      }
+    });
+  } catch (error: any) {
+    console.error('Error queueing audiobook generation:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Generate audio for a single chapter
+router.post('/:id/audiobook/chapter/:chapterNumber/generate', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const chapterNumber = parseInt(req.params.chapterNumber);
+    const { voice, model, forceRegenerate } = req.body;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    if (isNaN(chapterNumber) || chapterNumber < 1) {
+      return res.status(400).json({ success: false, error: 'Invalid chapter number' });
+    }
+
+    if (!voice) {
+      return res.status(400).json({ success: false, error: 'Voice is required' });
+    }
+
+    const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    if (!validVoices.includes(voice)) {
+      return res.status(400).json({ success: false, error: 'Invalid voice. Must be one of: ' + validVoices.join(', ') });
+    }
+
+    const ttsModel = (model === 'tts-1-hd' ? 'tts-1-hd' : 'tts-1') as 'tts-1' | 'tts-1-hd';
+
+    const book = await BookModel.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ success: false, error: 'Book not found' });
+    }
+
+    // Check if chapter exists
+    const { ChapterContentModel } = await import('../models/ChapterContent');
+    const chapter = await ChapterContentModel.findOne({ bookId, chapterNumber });
+    if (!chapter || !chapter.text) {
+      return res.status(404).json({ success: false, error: `Chapter ${chapterNumber} not found or has no text` });
+    }
+
+    // Generate audio for the chapter
+    const { generateChapterAudio } = await import('../services/audiobookService');
+    const skipIfExists = !forceRegenerate;
+    
+    // Create a temporary job ID for tracking (or use existing job if available)
+    const { AudiobookJobModel } = await import('../models/AudiobookJob');
+    let job = await AudiobookJobModel.findOne({ bookId }).sort({ createdAt: -1 });
+    
+    if (!job) {
+      // Create a minimal job for tracking
+      job = new AudiobookJobModel({
+        bookId,
+        voice,
+        model: ttsModel,
+        status: 'generating'
+      });
+      await job.save();
+    }
+
+    try {
+      const audioFilePath = await generateChapterAudio(
+        bookId,
+        chapterNumber,
+        voice,
+        ttsModel,
+        job._id!.toString(),
+        skipIfExists
+      );
+
+      res.json({
+        success: true,
+        message: `Chapter ${chapterNumber} audio generated successfully`,
+        data: {
+          chapterNumber,
+          audioFilePath
+        }
+      });
+    } catch (error: any) {
+      console.error(`Error generating audio for chapter ${chapterNumber}:`, error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  } catch (error: any) {
+    console.error('Error generating chapter audio:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get audiobook job status
+router.get('/:id/audiobook/status', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    const { AudiobookJobModel } = await import('../models/AudiobookJob');
+    const job = await AudiobookJobModel.findOne({ bookId })
+      .sort({ createdAt: -1 }); // Get most recent job
+
+    if (!job) {
+      return res.json({
+        success: true,
+        data: null
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        jobId: job._id,
+        status: job.status,
+        voice: job.voice,
+        model: job.model,
+        currentChapter: job.currentChapter,
+        totalChapters: job.totalChapters,
+        progress: job.progress ? Object.fromEntries(
+          job.progress instanceof Map 
+            ? Array.from(job.progress.entries()).map(([k, v]) => [parseInt(k.toString()) || k, v])
+            : Object.entries(job.progress).map(([k, v]) => [parseInt(k) || k, v])
+        ) : {},
+        estimatedCost: job.estimatedCost,
+        actualCost: job.actualCost,
+        error: job.error,
+        startedAt: job.startedAt,
+        completedAt: job.completedAt,
+        createdAt: job.createdAt
+      }
+    });
+  } catch (error: any) {
+    console.error('Error getting audiobook status:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Process all audio files with ffmpeg to fix quality issues
+router.post('/:id/audiobook/process-audio', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    const { processBookAudioFiles } = await import('../services/audiobookService');
+    const result = await processBookAudioFiles(bookId);
+
+    res.json({
+      success: true,
+      message: `Processed ${result.processed.length} audio files${result.failed.length > 0 ? `, ${result.failed.length} failed` : ''}`,
+      data: result
+    });
+  } catch (error: any) {
+    console.error('Error processing audio files:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Cancel audiobook generation
+router.post('/:id/audiobook/cancel', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    const { AudiobookJobModel } = await import('../models/AudiobookJob');
+    const { cancelAudiobookJob } = await import('../services/audiobookService');
+    
+    const job = await AudiobookJobModel.findOne({ bookId })
+      .sort({ createdAt: -1 }); // Get most recent job
+
+    if (!job) {
+      return res.status(404).json({ success: false, error: 'Audiobook job not found' });
+    }
+
+    await cancelAudiobookJob(job._id!.toString());
+
+    res.json({
+      success: true,
+      message: 'Audiobook generation cancelled'
+    });
+  } catch (error: any) {
+    console.error('Error cancelling audiobook:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Download chapter audio
+router.get('/:id/audiobook/chapter/:chapterNumber', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const chapterNumber = parseInt(req.params.chapterNumber);
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    if (isNaN(chapterNumber)) {
+      return res.status(400).json({ success: false, error: 'Invalid chapter number' });
+    }
+
+    const pathLib = await import('path');
+    const { fileURLToPath } = await import('url');
+    const fsLib = await import('fs/promises');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = pathLib.dirname(__filename);
+    const audioFilePath = pathLib.resolve(__dirname, '../uploads/audio/books', bookId, `chapter_${chapterNumber}.mp3`);
+
+    try {
+      await fsLib.access(audioFilePath);
+    } catch {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Chapter audio not found' 
+      });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', `attachment; filename="chapter_${chapterNumber}.mp3"`);
+    
+    const fsSync = await import('fs');
+    const fileStream = fsSync.createReadStream(audioFilePath);
+    fileStream.pipe(res);
+
+    fileStream.on('error', (error: any) => {
+      console.error('Error streaming audio file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: 'Error streaming file' });
+      }
+    });
+  } catch (error: any) {
+    console.error('Error downloading chapter audio:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Download prologue audio
+router.get('/:id/audiobook/prologue', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    const pathLib = await import('path');
+    const { fileURLToPath } = await import('url');
+    const fsLib = await import('fs/promises');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = pathLib.dirname(__filename);
+    const audioFilePath = pathLib.resolve(__dirname, '../uploads/audio/books', bookId, 'prologue.mp3');
+
+    try {
+      await fsLib.access(audioFilePath);
+    } catch {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Prologue audio not found' 
+      });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', 'attachment; filename="prologue.mp3"');
+    
+    const fsSync = await import('fs');
+    const fileStream = fsSync.createReadStream(audioFilePath);
+    fileStream.pipe(res);
+
+    fileStream.on('error', (error: any) => {
+      console.error('Error streaming audio file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: 'Error streaming file' });
+      }
+    });
+  } catch (error: any) {
+    console.error('Error downloading prologue audio:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Download epilogue audio
+router.get('/:id/audiobook/epilogue', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    
+    if (!bookId || !/^[0-9a-fA-F]{24}$/.test(bookId)) {
+      return res.status(400).json({ success: false, error: 'Invalid book ID format' });
+    }
+
+    const pathLib = await import('path');
+    const { fileURLToPath } = await import('url');
+    const fsLib = await import('fs/promises');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = pathLib.dirname(__filename);
+    const audioFilePath = pathLib.resolve(__dirname, '../uploads/audio/books', bookId, 'epilogue.mp3');
+
+    try {
+      await fsLib.access(audioFilePath);
+    } catch {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Epilogue audio not found' 
+      });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', 'attachment; filename="epilogue.mp3"');
+    
+    const fsSync = await import('fs');
+    const fileStream = fsSync.createReadStream(audioFilePath);
+    fileStream.pipe(res);
+
+    fileStream.on('error', (error: any) => {
+      console.error('Error streaming audio file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: 'Error streaming file' });
+      }
+    });
+  } catch (error: any) {
+    console.error('Error downloading epilogue audio:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
 

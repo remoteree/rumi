@@ -37,12 +37,38 @@ export default function BookAdmin() {
   const [coverPromptValue, setCoverPromptValue] = useState('');
   const [generatingCoverPrompt, setGeneratingCoverPrompt] = useState(false);
   const [publishWithoutChapterImages, setPublishWithoutChapterImages] = useState(false);
+  const [showAudiobookModal, setShowAudiobookModal] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState('alloy');
+  const [selectedModel, setSelectedModel] = useState<'tts-1' | 'tts-1-hd'>('tts-1');
+  const [audiobookEstimate, setAudiobookEstimate] = useState<{ totalCharacters: number; estimatedCost: number; chapterBreakdown: Array<{ chapterNumber: number; characters: number; cost: number }> } | null>(null);
+  const [estimatingAudiobook, setEstimatingAudiobook] = useState(false);
+  const [generatingAudiobook, setGeneratingAudiobook] = useState(false);
+  const [audiobookStatus, setAudiobookStatus] = useState<any>(null);
+  const [cancellingAudiobook, setCancellingAudiobook] = useState(false);
+  const [forceRegenerate, setForceRegenerate] = useState(false);
+  const [regeneratingChapter, setRegeneratingChapter] = useState<number | null>(null);
+  const [processingAudio, setProcessingAudio] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadData();
+      loadAudiobookStatus();
     }
   }, [id]);
+
+  // Poll audiobook status if job is in progress
+  useEffect(() => {
+    if (!id) return;
+    
+    if (audiobookStatus && (audiobookStatus.status === 'pending' || audiobookStatus.status === 'generating')) {
+      const interval = setInterval(() => {
+        loadAudiobookStatus();
+      }, 5000); // Poll every 5 seconds
+      
+      return () => clearInterval(interval);
+    }
+    // Stop polling if job is complete, failed, or cancelled
+  }, [audiobookStatus, id]);
 
   const loadData = async () => {
     // Ensure id is a string, not an object
@@ -77,6 +103,99 @@ export default function BookAdmin() {
       console.error('Failed to load data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAudiobookStatus = async () => {
+    if (!id) return;
+    const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+    if (!bookId) return;
+
+    try {
+      const result = await booksApi.getAudiobookStatus(bookId);
+      if (result.success) {
+        setAudiobookStatus(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load audiobook status:', error);
+    }
+  };
+
+  const handleEstimateAudiobook = async () => {
+    if (!id) return;
+    const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+    if (!bookId) return;
+
+    setEstimatingAudiobook(true);
+    try {
+      const result = await booksApi.estimateAudiobook(bookId, selectedVoice, selectedModel);
+      if (result.success && result.data) {
+        setAudiobookEstimate(result.data);
+      }
+    } catch (error: any) {
+      console.error('Failed to estimate audiobook:', error);
+      alert(`Failed to estimate audiobook: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setEstimatingAudiobook(false);
+    }
+  };
+
+  const handleRegenerateChapter = async (chapterNumber: number) => {
+    if (!audiobookStatus) return;
+    const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+    if (!bookId) return;
+
+    if (!confirm(`Regenerate audio for Chapter ${chapterNumber}? This will overwrite the existing audio file.`)) {
+      return;
+    }
+
+    setRegeneratingChapter(chapterNumber);
+    try {
+      await booksApi.generateChapterAudio(
+        bookId,
+        chapterNumber,
+        audiobookStatus.voice,
+        audiobookStatus.model,
+        true // forceRegenerate
+      );
+      alert(`Chapter ${chapterNumber} audio regenerated successfully`);
+      await loadAudiobookStatus();
+    } catch (error: any) {
+      console.error('Failed to regenerate chapter audio:', error);
+      alert(`Failed to regenerate chapter audio: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setRegeneratingChapter(null);
+    }
+  };
+
+  const handleGenerateAudiobook = async () => {
+    if (!id) return;
+    const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+    if (!bookId) return;
+
+    if (!audiobookEstimate) {
+      alert('Please estimate cost first');
+      return;
+    }
+
+    if (!confirm(`Generate audiobook for "${book?.title}"?\n\nVoice: ${selectedVoice}\nModel: ${selectedModel}\nEstimated Cost: $${audiobookEstimate.estimatedCost.toFixed(4)}`)) {
+      return;
+    }
+
+    setGeneratingAudiobook(true);
+    try {
+      const result = await booksApi.generateAudiobook(bookId, selectedVoice, selectedModel, forceRegenerate);
+      if (result.success) {
+        alert('Audiobook generation queued! The worker will process it shortly.');
+        setShowAudiobookModal(false);
+        setForceRegenerate(false);
+        await loadAudiobookStatus();
+      }
+    } catch (error: any) {
+      console.error('Failed to generate audiobook:', error);
+      alert(`Failed to generate audiobook: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setGeneratingAudiobook(false);
     }
   };
 
@@ -374,10 +493,18 @@ export default function BookAdmin() {
                 onClick={handleRepublish}
                 className="btn btn-success"
                 disabled={republishing}
+                style={{ marginRight: '0.5rem' }}
               >
                 {republishing ? 'Republishing...' : '🔄 Republish Book'}
               </button>
             )}
+            <button
+              onClick={() => setShowAudiobookModal(true)}
+              className="btn btn-primary"
+              title="Generate audiobook"
+            >
+              🎙️ Generate Audiobook
+            </button>
           </>
         )}
         {book?.status !== 'published' && (
@@ -414,9 +541,19 @@ export default function BookAdmin() {
               }}
               className="btn btn-primary"
               title="Export book as Word document"
+              style={{ marginRight: '0.5rem' }}
             >
               📄 Export as DOCX
             </button>
+            {book?.status === 'complete' && (
+              <button
+                onClick={() => setShowAudiobookModal(true)}
+                className="btn btn-primary"
+                title="Generate audiobook"
+              >
+                🎙️ Generate Audiobook
+              </button>
+            )}
           </>
         )}
       </div>
@@ -471,6 +608,160 @@ export default function BookAdmin() {
             {book.epilogue && (
               <div style={{ padding: '0.5rem 0', borderBottom: '1px solid #eee' }}>
                 <strong>Epilogue</strong>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Audiobook Status */}
+      {audiobookStatus && (
+        <div className="card" style={{ marginBottom: '2rem', background: audiobookStatus.status === 'complete' ? '#d4edda' : audiobookStatus.status === 'failed' ? '#f8d7da' : audiobookStatus.status === 'cancelled' ? '#e2e3e5' : '#fff3cd', border: `1px solid ${audiobookStatus.status === 'complete' ? '#28a745' : audiobookStatus.status === 'failed' ? '#dc3545' : audiobookStatus.status === 'cancelled' ? '#6c757d' : '#ffc107'}` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{ marginTop: 0 }}>🎙️ Audiobook Status</h2>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {(audiobookStatus.status === 'pending' || audiobookStatus.status === 'generating') && (
+                <button
+                  onClick={async () => {
+                    if (!confirm('Are you sure you want to cancel audiobook generation? This will stop the process immediately.')) {
+                      return;
+                    }
+                    setCancellingAudiobook(true);
+                    try {
+                      const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                      if (bookId) {
+                        await booksApi.cancelAudiobook(bookId);
+                        alert('Audiobook generation cancelled');
+                        await loadAudiobookStatus();
+                      }
+                    } catch (error: any) {
+                      console.error('Failed to cancel audiobook:', error);
+                      alert(`Failed to cancel audiobook: ${error.response?.data?.error || error.message}`);
+                    } finally {
+                      setCancellingAudiobook(false);
+                    }
+                  }}
+                  className="btn btn-danger"
+                  disabled={cancellingAudiobook}
+                >
+                  {cancellingAudiobook ? 'Cancelling...' : '⏹️ Cancel Generation'}
+                </button>
+              )}
+              {(audiobookStatus.status === 'complete' || audiobookStatus.status === 'failed' || audiobookStatus.status === 'cancelled') && (
+                <button
+                  onClick={async () => {
+                    if (!confirm('Process all audio files with ffmpeg to fix quality issues (bitrate, sample rate, etc.)? This will overwrite existing files.')) {
+                      return;
+                    }
+                    setProcessingAudio(true);
+                    try {
+                      const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                      if (bookId) {
+                        const result = await booksApi.processAudioFiles(bookId);
+                        if (result.success) {
+                          const message = `Processed ${result.data.processed.length} audio files${result.data.failed.length > 0 ? `\n\nFailed: ${result.data.failed.map(f => f.file).join(', ')}` : ''}`;
+                          alert(message);
+                        }
+                      }
+                    } catch (error: any) {
+                      console.error('Failed to process audio files:', error);
+                      alert(`Failed to process audio files: ${error.response?.data?.error || error.message}`);
+                    } finally {
+                      setProcessingAudio(false);
+                    }
+                  }}
+                  className="btn btn-primary"
+                  disabled={processingAudio}
+                  title="Process all audio files with ffmpeg to fix quality issues (44.1kHz, 192kbps, mono)"
+                >
+                  {processingAudio ? 'Processing...' : '🎬 Process Audio Files'}
+                </button>
+              )}
+            </div>
+          </div>
+          <div style={{ marginTop: '1rem' }}>
+            <p><strong>Status:</strong> <span className={`badge ${audiobookStatus.status === 'complete' ? 'badge-success' : audiobookStatus.status === 'failed' ? 'badge-danger' : audiobookStatus.status === 'cancelled' ? 'badge-secondary' : 'badge-warning'}`}>{audiobookStatus.status}</span></p>
+            <p><strong>Voice:</strong> {audiobookStatus.voice}</p>
+            <p><strong>Model:</strong> {audiobookStatus.model}</p>
+            {audiobookStatus.totalChapters && (
+              <p><strong>Progress:</strong> {Object.keys(audiobookStatus.progress || {}).length} / {audiobookStatus.totalChapters} chapters</p>
+            )}
+            {audiobookStatus.currentChapter && (
+              <p><strong>Current Chapter:</strong> {audiobookStatus.currentChapter}</p>
+            )}
+            {audiobookStatus.estimatedCost && (
+              <p><strong>Estimated Cost:</strong> ${audiobookStatus.estimatedCost.toFixed(4)}</p>
+            )}
+            {audiobookStatus.actualCost && (
+              <p><strong>Actual Cost:</strong> ${audiobookStatus.actualCost.toFixed(4)}</p>
+            )}
+            {audiobookStatus.error && (
+              <p style={{ color: '#dc3545' }}><strong>Error:</strong> {audiobookStatus.error}</p>
+            )}
+            {(audiobookStatus.status === 'complete' || audiobookStatus.status === 'failed' || audiobookStatus.status === 'cancelled') && (
+              <div style={{ marginTop: '1rem' }}>
+                <p><strong>Audio Files:</strong></p>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                  {book?.prologue && (
+                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      <button
+                        onClick={() => {
+                          const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                          if (bookId) booksApi.downloadPrologueAudio(bookId);
+                        }}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.875rem' }}
+                      >
+                        📥 Prologue
+                      </button>
+                    </div>
+                  )}
+                  {chapters.map((chapter) => {
+                    const chapterProgress = audiobookStatus.progress?.[chapter.chapterNumber];
+                    const hasAudio = chapterProgress || false;
+                    return (
+                      <div key={chapter.chapterNumber} style={{ display: 'flex', gap: '0.25rem' }}>
+                        <button
+                          onClick={() => {
+                            const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                            if (bookId) booksApi.downloadChapterAudio(bookId, chapter.chapterNumber);
+                          }}
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.875rem' }}
+                          disabled={!hasAudio}
+                          title={hasAudio ? 'Download audio' : 'Audio not generated yet'}
+                        >
+                          📥 Ch {chapter.chapterNumber}
+                        </button>
+                        {hasAudio && (
+                          <button
+                            onClick={() => handleRegenerateChapter(chapter.chapterNumber)}
+                            className="btn btn-warning"
+                            style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
+                            disabled={regeneratingChapter === chapter.chapterNumber}
+                            title="Regenerate this chapter"
+                          >
+                            {regeneratingChapter === chapter.chapterNumber ? '⏳' : '🔄'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {book?.epilogue && (
+                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      <button
+                        onClick={() => {
+                          const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
+                          if (bookId) booksApi.downloadEpilogueAudio(bookId);
+                        }}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.875rem' }}
+                      >
+                        📥 Epilogue
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -871,6 +1162,140 @@ export default function BookAdmin() {
           )}
         </div>
       </div>
+
+      {/* Audiobook Modal */}
+      {showAudiobookModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }} onClick={() => setShowAudiobookModal(false)}>
+          <div className="card" style={{
+            maxWidth: '600px',
+            width: '90%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            zIndex: 1001
+          }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginTop: 0 }}>🎙️ Generate Audiobook</h2>
+            
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label><strong>Voice:</strong></label>
+              <select
+                value={selectedVoice}
+                onChange={(e) => {
+                  setSelectedVoice(e.target.value);
+                  setAudiobookEstimate(null); // Reset estimate when voice changes
+                }}
+                style={{ width: '100%', padding: '0.5rem', marginTop: '0.5rem' }}
+              >
+                <option value="alloy">Alloy</option>
+                <option value="echo">Echo</option>
+                <option value="fable">Fable</option>
+                <option value="onyx">Onyx</option>
+                <option value="nova">Nova</option>
+                <option value="shimmer">Shimmer</option>
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label><strong>Model:</strong></label>
+              <select
+                value={selectedModel}
+                onChange={(e) => {
+                  setSelectedModel(e.target.value as 'tts-1' | 'tts-1-hd');
+                  setAudiobookEstimate(null); // Reset estimate when model changes
+                }}
+                style={{ width: '100%', padding: '0.5rem', marginTop: '0.5rem' }}
+              >
+                <option value="tts-1">TTS-1 (Standard) - $0.015 per 1,000 characters</option>
+                <option value="tts-1-hd">TTS-1-HD (High Quality) - $0.030 per 1,000 characters</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <button
+                onClick={handleEstimateAudiobook}
+                className="btn btn-primary"
+                disabled={estimatingAudiobook}
+                style={{ width: '100%' }}
+              >
+                {estimatingAudiobook ? 'Estimating...' : '💰 Estimate Cost'}
+              </button>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={forceRegenerate}
+                  onChange={(e) => setForceRegenerate(e.target.checked)}
+                />
+                <span><strong>Force Regenerate</strong> (Regenerate all chapters even if audio exists)</span>
+              </label>
+              <small style={{ display: 'block', marginTop: '0.25rem', color: '#666' }}>
+                If unchecked, existing audio files will be skipped to save time and cost.
+              </small>
+            </div>
+
+            {audiobookEstimate && (
+              <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '4px' }}>
+                <h3 style={{ marginTop: 0 }}>Cost Estimation</h3>
+                <p><strong>Total Characters:</strong> {audiobookEstimate.totalCharacters.toLocaleString()}</p>
+                <p><strong>Estimated Cost:</strong> <span style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#28a745' }}>${audiobookEstimate.estimatedCost.toFixed(4)}</span></p>
+                <details style={{ marginTop: '1rem' }}>
+                  <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>Chapter Breakdown</summary>
+                  <table style={{ width: '100%', marginTop: '0.5rem', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #ddd' }}>
+                        <th style={{ textAlign: 'left', padding: '0.5rem' }}>Chapter</th>
+                        <th style={{ textAlign: 'right', padding: '0.5rem' }}>Characters</th>
+                        <th style={{ textAlign: 'right', padding: '0.5rem' }}>Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {audiobookEstimate.chapterBreakdown.map((chapter) => (
+                        <tr key={chapter.chapterNumber} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '0.5rem' }}>Chapter {chapter.chapterNumber}</td>
+                          <td style={{ textAlign: 'right', padding: '0.5rem' }}>{chapter.characters.toLocaleString()}</td>
+                          <td style={{ textAlign: 'right', padding: '0.5rem' }}>${chapter.cost.toFixed(4)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </details>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowAudiobookModal(false);
+                  setAudiobookEstimate(null);
+                }}
+                className="btn btn-secondary"
+                disabled={generatingAudiobook}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGenerateAudiobook}
+                className="btn btn-success"
+                disabled={!audiobookEstimate || generatingAudiobook}
+              >
+                {generatingAudiobook ? 'Queuing...' : '🎙️ Generate Audiobook'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

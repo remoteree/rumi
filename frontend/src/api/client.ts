@@ -60,6 +60,63 @@ export const booksApi = {
     // Trigger download
     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
     window.open(`${API_BASE_URL}/books/${id}/export-docx`, '_blank');
+  },
+  estimateAudiobook: async (id: string, voice: string, model: 'tts-1' | 'tts-1-hd' = 'tts-1') => {
+    const res = await client.get<ApiResponse<{ totalCharacters: number; estimatedCost: number; chapterBreakdown: Array<{ chapterNumber: number; characters: number; cost: number }> }>>(`/books/${id}/audiobook/estimate`, {
+      params: { voice, model }
+    });
+    return res.data;
+  },
+  generateAudiobook: async (id: string, voice: string, model: 'tts-1' | 'tts-1-hd' = 'tts-1', forceRegenerate?: boolean) => {
+    const res = await client.post<ApiResponse<{ jobId: string; estimatedCost: number; totalChapters: number }>>(`/books/${id}/audiobook/generate`, { voice, model, forceRegenerate: forceRegenerate || false });
+    return res.data;
+  },
+  getAudiobookStatus: async (id: string) => {
+    const res = await client.get<ApiResponse<{
+      jobId: string;
+      status: string;
+      voice: string;
+      model: string;
+      currentChapter?: number;
+      totalChapters?: number;
+      progress: Record<number, boolean>;
+      estimatedCost?: number;
+      actualCost?: number;
+      error?: string;
+      startedAt?: Date;
+      completedAt?: Date;
+      createdAt?: Date;
+    } | null>>(`/books/${id}/audiobook/status`);
+    return res.data;
+  },
+  downloadChapterAudio: async (id: string, chapterNumber: number) => {
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    window.open(`${API_BASE_URL}/books/${id}/audiobook/chapter/${chapterNumber}`, '_blank');
+  },
+  downloadPrologueAudio: async (id: string) => {
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    window.open(`${API_BASE_URL}/books/${id}/audiobook/prologue`, '_blank');
+  },
+  downloadEpilogueAudio: async (id: string) => {
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    window.open(`${API_BASE_URL}/books/${id}/audiobook/epilogue`, '_blank');
+  },
+  cancelAudiobook: async (id: string) => {
+    const res = await client.post<ApiResponse<{ message: string }>>(`/books/${id}/audiobook/cancel`);
+    return res.data;
+  },
+  generateChapterAudio: async (id: string, chapterNumber: number, voice: string, model: 'tts-1' | 'tts-1-hd', forceRegenerate?: boolean) => {
+    const res = await client.post<ApiResponse<{ chapterNumber: number; audioFilePath: string }>>(
+      `/books/${id}/audiobook/chapter/${chapterNumber}/generate`,
+      { voice, model, forceRegenerate: forceRegenerate || false }
+    );
+    return res.data;
+  },
+  processAudioFiles: async (id: string) => {
+    const res = await client.post<ApiResponse<{ processed: string[]; failed: Array<{ file: string; error: string }> }>>(
+      `/books/${id}/audiobook/process-audio`
+    );
+    return res.data;
   }
 };
 

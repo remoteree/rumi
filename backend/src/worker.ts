@@ -4,7 +4,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { connectDatabase } from './config/database';
 import { GenerationJobModel } from './models/GenerationJob';
+import { AudiobookJobModel } from './models/AudiobookJob';
 import { processGenerationJob } from './services/generationService';
+import { processAudiobookJob } from './services/audiobookService';
 
 // Get the directory name in ESM (needed for path resolution)
 const __filename = fileURLToPath(import.meta.url);
@@ -58,11 +60,11 @@ if (!process.env.OPENAI_API_KEY) {
   process.exit(1);
 }
 
-// Process jobs every minute
+// Process generation jobs every minute
 cron.schedule('* * * * *', async () => {
   try {
     const timestamp = new Date().toISOString();
-    console.log(`\n[${timestamp}] 🔍 Worker checking for pending jobs...`);
+    console.log(`\n[${timestamp}] 🔍 Worker checking for pending generation jobs...`);
     
     // Atomically claim a job using findOneAndUpdate with processingLock
     // This acts as a distributed lock to prevent concurrent processing
@@ -95,25 +97,80 @@ cron.schedule('* * * * *', async () => {
     );
 
     if (!job) {
-      console.log(`[${timestamp}] ✅ No pending jobs found (or all jobs are locked)`);
+      console.log(`[${timestamp}] ✅ No pending generation jobs found (or all jobs are locked)`);
       return;
     }
 
-    console.log(`[${timestamp}] 🔄 Found job ${job._id} for book ${job.bookId}`);
+    console.log(`[${timestamp}] 🔄 Found generation job ${job._id} for book ${job.bookId}`);
     console.log(`[${timestamp}] 📊 Job status: ${job.status}`);
 
     try {
       await processGenerationJob(job._id!.toString());
       const endTime = new Date().toISOString();
-      console.log(`[${endTime}] ✅ Job ${job._id} completed successfully`);
+      console.log(`[${endTime}] ✅ Generation job ${job._id} completed successfully`);
     } catch (error: any) {
       const endTime = new Date().toISOString();
-      console.error(`[${endTime}] ❌ Job ${job._id} failed:`, error.message);
+      console.error(`[${endTime}] ❌ Generation job ${job._id} failed:`, error.message);
       // Job status is updated in processGenerationJob on error
     }
   } catch (error: any) {
     const timestamp = new Date().toISOString();
     console.error(`[${timestamp}] ❌ Worker error:`, error.message);
+    console.error(error.stack);
+  }
+});
+
+// Process audiobook jobs every minute (separate cron job)
+cron.schedule('* * * * *', async () => {
+  try {
+    const timestamp = new Date().toISOString();
+    console.log(`\n[${timestamp}] 🎙️  Worker checking for pending audiobook jobs...`);
+    
+    const now = new Date();
+    const lockTimeout = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes timeout (stale lock)
+    
+    const audiobookJob = await AudiobookJobModel.findOneAndUpdate(
+      {
+        status: { $in: ['pending', 'generating', 'failed'] }, // Allow retrying failed jobs
+        $or: [
+          { processingLock: { $exists: false } },
+          { processingLock: null },
+          { processingLock: { $lt: lockTimeout } }
+        ]
+      },
+      {
+        $set: {
+          processingLock: now,
+          startedAt: now
+        }
+      },
+      {
+        sort: { createdAt: 1 },
+        new: true
+      }
+    );
+
+    if (!audiobookJob) {
+      console.log(`[${timestamp}] ✅ No pending audiobook jobs found (or all jobs are locked)`);
+      return;
+    }
+
+    console.log(`[${timestamp}] 🎙️  Found audiobook job ${audiobookJob._id} for book ${audiobookJob.bookId}`);
+    console.log(`[${timestamp}] 📊 Job status: ${audiobookJob.status}`);
+    console.log(`[${timestamp}] 🎤 Voice: ${audiobookJob.voice}, Model: ${audiobookJob.model}`);
+
+    try {
+      await processAudiobookJob(audiobookJob._id!.toString());
+      const endTime = new Date().toISOString();
+      console.log(`[${endTime}] ✅ Audiobook job ${audiobookJob._id} completed successfully`);
+    } catch (error: any) {
+      const endTime = new Date().toISOString();
+      console.error(`[${endTime}] ❌ Audiobook job ${audiobookJob._id} failed:`, error.message);
+      // Job status is updated in processAudiobookJob on error
+    }
+  } catch (error: any) {
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] ❌ Audiobook worker error:`, error.message);
     console.error(error.stack);
   }
 });
