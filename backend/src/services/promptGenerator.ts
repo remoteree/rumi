@@ -278,7 +278,7 @@ Book Context:
 Style Guide:
 {{SERIES_STYLE_GUIDE}}
 
-Previous Chapter Summary (for thematic callbacks):
+Previous Chapters Summary (for thematic callbacks and to avoid repetition):
 {{PREVIOUS_CHAPTER_SUMMARY}}
 
 Write Chapter {{CHAPTER_NUMBER}}: "{{CHAPTER_TITLE}}"
@@ -293,7 +293,8 @@ Requirements:
 - Use structured Markdown format with H2 sections as specified in sectionHeadings
 - Include {{CHAPTER_STRUCTURE}} if provided
 - Add a hook in the introduction
-- Reference previous chapter concept if this is not chapter 1
+- CRITICAL: Review the previous chapters summary above. Ensure this chapter does NOT repeat content, concepts, or examples that were already covered in previous chapters. Build upon previous chapters rather than rehashing them.
+- Reference previous chapter concepts naturally if this is not chapter 1, but avoid repetition
 - Include takeaways or exercises if appropriate for this book type
 - If current news is provided above, naturally incorporate relevant recent examples, trends, or developments where appropriate, but maintain focus on explaining concepts using OpenAI's capabilities
 - CRITICAL: Never claim first-hand experience. Avoid phrases like "I spoke to", "I met", "I interviewed", "I witnessed", "I saw", "I experienced", "I visited", "I talked with", or any other claims of direct personal experience. Write from a third-person perspective or use general observations and research-based information instead.

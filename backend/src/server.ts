@@ -94,6 +94,17 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Global error handler middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  if (!res.headersSent) {
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Internal server error'
+    });
+  }
+});
+
 async function startServer() {
   try {
     // Check for MONGODB_URI with case-insensitive search
@@ -113,7 +124,7 @@ async function startServer() {
     }
     await connectDatabase(mongoUri);
     
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
   } catch (error) {

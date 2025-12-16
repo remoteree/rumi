@@ -148,6 +148,7 @@ export interface ChapterContent {
   chapterNumber: number;
   text: string;
   textPrompt?: string; // The actual prompt used to generate the text
+  generatedSummary?: string; // Summary generated from the actual chapter content (after text is written)
   imageUrl?: string;
   imagePrompt?: string;
   imageMetadata?: {

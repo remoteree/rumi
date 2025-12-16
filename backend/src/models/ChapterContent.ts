@@ -28,6 +28,7 @@ const ChapterContentSchema = new Schema<ChapterContentDocument>({
   chapterNumber: { type: Number, required: true },
   text: { type: String },
   textPrompt: { type: String }, // The actual prompt used to generate the text
+  generatedSummary: { type: String }, // Summary generated from the actual chapter content (after text is written)
   imageUrl: { type: String },
   imagePrompt: { type: String },
   imageMetadata: { type: ImageMetadataSchema },

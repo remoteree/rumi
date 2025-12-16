@@ -384,9 +384,13 @@ export async function generatePrologue(
       messages: [{ role: 'user', content: promptText }]
     });
 
-    const prologue = response.choices[0].message.content || '';
+    let prologue = response.choices[0].message.content || '';
     const tokens = response.usage?.total_tokens || 0;
     console.log(`✅ [PROLOGUE] Prologue generated: ${prologue.split(/\s+/).length} words (${tokens} tokens)`);
+    
+    // Add AI workflow note at the end of prologue
+    const aiNote = '\n\n---\n\n*This book was written with the help of a multi-agent, multi-step AI workflow with a human in the loop.*';
+    prologue = prologue.trim() + aiNote;
     
     await trackTokenUsage(bookId, job._id!.toString(), 'prologue', response.usage, CHAPTER_TEXT_MODEL);
 
@@ -496,13 +500,33 @@ export async function generateChapterText(
   );
 
   try {
-    // Get previous chapter summary
-    let previousChapterSummary = '';
+    // Get summaries from all previous chapters (prefer generated summaries if available)
+    let previousChaptersSummary = '';
     if (chapterNumber > 1) {
-      const prevChapter = outline.structure.chapters.find(c => c.chapterNumber === chapterNumber - 1);
-      if (prevChapter) {
-        previousChapterSummary = `Previous chapter: ${prevChapter.title} - ${prevChapter.summary}`;
-        console.log(`📖 [CHAPTER ${chapterNumber}] Including previous chapter context: "${prevChapter.title}"`);
+      const previousChapters: string[] = [];
+      
+      // Get all previous chapters
+      for (let i = 1; i < chapterNumber; i++) {
+        // First, try to get generated summary from ChapterContent
+        const prevChapterContent = await ChapterContentModel.findOne({ 
+          bookId, 
+          chapterNumber: i 
+        });
+        
+        const prevChapterOutline = outline.structure.chapters.find(c => c.chapterNumber === i);
+        
+        if (prevChapterContent?.generatedSummary) {
+          // Use generated summary (more accurate, based on actual content)
+          previousChapters.push(`Chapter ${i}: ${prevChapterOutline?.title || `Chapter ${i}`} - ${prevChapterContent.generatedSummary}`);
+        } else if (prevChapterOutline) {
+          // Fall back to outline summary
+          previousChapters.push(`Chapter ${i}: ${prevChapterOutline.title} - ${prevChapterOutline.summary}`);
+        }
+      }
+      
+      if (previousChapters.length > 0) {
+        previousChaptersSummary = `Previous Chapters (to avoid repetition and ensure continuity):\n${previousChapters.join('\n')}`;
+        console.log(`📖 [CHAPTER ${chapterNumber}] Including ${previousChapters.length} previous chapter summaries for context`);
       }
     }
 
@@ -548,7 +572,7 @@ export async function generateChapterText(
       '{{CHAPTER_SUMMARY}}': chapter.summary,
       '{{BOOK_CONTEXT}}': JSON.stringify(context, null, 2),
       '{{SERIES_STYLE_GUIDE}}': JSON.stringify(outline.styleGuide, null, 2),
-      '{{PREVIOUS_CHAPTER_SUMMARY}}': previousChapterSummary,
+      '{{PREVIOUS_CHAPTER_SUMMARY}}': previousChaptersSummary,
       '{{CHAPTER_NUMBER}}': chapterNumber.toString(),
       '{{CHAPTER_TITLE}}': chapter.title,
       '{{WORD_COUNT_TARGET}}': (chapter.wordCountTarget || 1200).toString(),
@@ -583,13 +607,57 @@ export async function generateChapterText(
     const keywords = extractKeywords(text);
     console.log(`📊 [CHAPTER ${chapterNumber}] Extracted ${keywords.length} keywords: ${keywords.slice(0, 5).join(', ')}...`);
 
-    // Save chapter with the prompt that was used
+    // Generate summary from the actual chapter content
+    console.log(`📝 [CHAPTER ${chapterNumber}] Generating summary from chapter content...`);
+    let generatedSummary = '';
+    try {
+      const bookTypeMetadata = BOOK_TYPES.find(bt => bt.id === bookType);
+      const bookTypeName = bookTypeMetadata?.name || bookType;
+      
+      const summaryPrompt = `You are creating a concise summary for a chapter in a ${bookTypeName} book.
+
+Chapter Title: ${chapter.title}
+Chapter Content:
+${text.substring(0, 4000)}${text.length > 4000 ? '...' : ''}
+
+Create a 2-3 sentence summary that captures:
+1. The main topic and key points covered
+2. The primary takeaway or lesson
+3. How it fits into the broader narrative
+
+Summary:`;
+
+      const summaryResponse = await openai.chat.completions.create({
+        model: CHAPTER_TEXT_MODEL,
+        messages: [{ role: 'user', content: summaryPrompt }],
+        max_tokens: 200,
+        temperature: 0.3
+      });
+
+      generatedSummary = summaryResponse.choices[0].message.content?.trim() || '';
+      const summaryTokens = summaryResponse.usage?.total_tokens || 0;
+      console.log(`✅ [CHAPTER ${chapterNumber}] Summary generated (${summaryTokens} tokens)`);
+      
+      await trackTokenUsage(
+        bookId,
+        job._id!.toString(),
+        `chapter_${chapterNumber}_summary`,
+        summaryResponse.usage,
+        CHAPTER_TEXT_MODEL
+      );
+    } catch (error: any) {
+      console.warn(`⚠️ [CHAPTER ${chapterNumber}] Failed to generate summary: ${error.message}`);
+      // Continue without summary - not critical, but log the warning
+    }
+
+    // Save chapter with the prompt that was used and generated summary
     console.log(`💾 [CHAPTER ${chapterNumber}] Saving chapter text to database...`);
     await ChapterContentModel.findOneAndUpdate(
       { bookId, chapterNumber },
       {
         text,
         textPrompt: promptText, // Save the actual prompt used
+        generatedSummary: generatedSummary || undefined, // Save generated summary if available
         status: 'text_complete',
         metadata: {
           wordCount,
