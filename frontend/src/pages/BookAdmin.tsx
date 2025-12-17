@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { booksApi, adminApi } from '../api/client';
+import { showToast } from '../utils/toast';
 
 interface Chapter {
   chapterNumber: number;
@@ -77,7 +78,7 @@ export default function BookAdmin() {
     
     if (!bookId || typeof bookId !== 'string') {
       console.error('Invalid book ID:', id);
-      alert('Invalid book ID. Please navigate from the book list.');
+      showToast.error('Invalid book ID. Please navigate from the book list.');
       return;
     }
 
@@ -135,7 +136,7 @@ export default function BookAdmin() {
       }
     } catch (error: any) {
       console.error('Failed to estimate audiobook:', error);
-      alert(`Failed to estimate audiobook: ${error.response?.data?.error || error.message}`);
+      showToast.error(`Failed to estimate audiobook: ${error.response?.data?.error || error.message}`);
     } finally {
       setEstimatingAudiobook(false);
     }
@@ -159,11 +160,11 @@ export default function BookAdmin() {
         audiobookStatus.model,
         true // forceRegenerate
       );
-      alert(`Chapter ${chapterNumber} audio regenerated successfully`);
+      showToast.success(`Chapter ${chapterNumber} audio regenerated successfully`);
       await loadAudiobookStatus();
     } catch (error: any) {
       console.error('Failed to regenerate chapter audio:', error);
-      alert(`Failed to regenerate chapter audio: ${error.response?.data?.error || error.message}`);
+      showToast.error(`Failed to regenerate chapter audio: ${error.response?.data?.error || error.message}`);
     } finally {
       setRegeneratingChapter(null);
     }
@@ -175,7 +176,7 @@ export default function BookAdmin() {
     if (!bookId) return;
 
     if (!audiobookEstimate) {
-      alert('Please estimate cost first');
+      showToast.warning('Please estimate cost first');
       return;
     }
 
@@ -187,14 +188,14 @@ export default function BookAdmin() {
     try {
       const result = await booksApi.generateAudiobook(bookId, selectedVoice, selectedModel, forceRegenerate);
       if (result.success) {
-        alert('Audiobook generation queued! The worker will process it shortly.');
+        showToast.success('Audiobook generation queued! The worker will process it shortly.');
         setShowAudiobookModal(false);
         setForceRegenerate(false);
         await loadAudiobookStatus();
       }
     } catch (error: any) {
       console.error('Failed to generate audiobook:', error);
-      alert(`Failed to generate audiobook: ${error.response?.data?.error || error.message}`);
+      showToast.error(`Failed to generate audiobook: ${error.response?.data?.error || error.message}`);
     } finally {
       setGeneratingAudiobook(false);
     }
@@ -226,7 +227,7 @@ export default function BookAdmin() {
       }
     } catch (error) {
       console.error('Failed to save text:', error);
-      alert('Failed to save text');
+      showToast.error('Failed to save text');
     } finally {
       setSaving(false);
     }
@@ -248,7 +249,7 @@ export default function BookAdmin() {
       }
     } catch (error) {
       console.error('Failed to save text prompt:', error);
-      alert('Failed to save text prompt');
+      showToast.error('Failed to save text prompt');
     } finally {
       setSaving(false);
     }
@@ -270,7 +271,7 @@ export default function BookAdmin() {
       }
     } catch (error) {
       console.error('Failed to save prompt:', error);
-      alert('Failed to save prompt');
+      showToast.error('Failed to save prompt');
     } finally {
       setSaving(false);
     }
@@ -284,10 +285,10 @@ export default function BookAdmin() {
     try {
       await adminApi.uploadImage(bookId, selectedChapter.chapterNumber, e.target.files[0]);
       await loadData();
-      alert('Image uploaded successfully');
+      showToast.success('Image uploaded successfully');
     } catch (error) {
       console.error('Failed to upload image:', error);
-      alert('Failed to upload image');
+      showToast.error('Failed to upload image');
     } finally {
       setSaving(false);
     }
@@ -339,13 +340,13 @@ export default function BookAdmin() {
     try {
       const result = await booksApi.publish(bookId, force);
       if (result.success) {
-        alert('Book published successfully! Download will start automatically.');
+        showToast.success('Book published successfully! Download will start automatically.');
         await booksApi.downloadPublished(bookId);
         await loadData(); // Reload to get updated status
       }
     } catch (error: any) {
       console.error('Failed to publish book:', error);
-      alert(`Failed to publish book: ${error.response?.data?.error || error.message}`);
+      showToast.error(`Failed to publish book: ${error.response?.data?.error || error.message}`);
     } finally {
       setPublishing(false);
     }
@@ -362,11 +363,11 @@ export default function BookAdmin() {
       if (result.success && result.data) {
         setCoverPromptValue(result.data.coverImagePrompt);
         await loadData(); // Reload to get updated book data
-        alert('Cover image prompt generated successfully!');
+        showToast.success('Cover image prompt generated successfully!');
       }
     } catch (error: any) {
       console.error('Failed to generate cover prompt:', error);
-      alert(`Failed to generate cover prompt: ${error.response?.data?.error || error.message}`);
+      showToast.error(`Failed to generate cover prompt: ${error.response?.data?.error || error.message}`);
     } finally {
       setGeneratingCoverPrompt(false);
     }
@@ -381,10 +382,10 @@ export default function BookAdmin() {
       await adminApi.updateCoverImagePrompt(bookId, coverPromptValue);
       await loadData();
       setEditingCoverPrompt(false);
-      alert('Cover image prompt saved successfully!');
+      showToast.success('Cover image prompt saved successfully!');
     } catch (error: any) {
       console.error('Failed to save cover prompt:', error);
-      alert('Failed to save cover image prompt');
+      showToast.error('Failed to save cover image prompt');
     } finally {
       setSaving(false);
     }
@@ -398,10 +399,10 @@ export default function BookAdmin() {
     try {
       await adminApi.uploadCoverImage(bookId, e.target.files[0]);
       await loadData();
-      alert('Cover image uploaded successfully!');
+      showToast.success('Cover image uploaded successfully!');
     } catch (error: any) {
       console.error('Failed to upload cover image:', error);
-      alert('Failed to upload cover image');
+      showToast.error('Failed to upload cover image');
     } finally {
       setSaving(false);
     }
@@ -409,7 +410,7 @@ export default function BookAdmin() {
 
   const handleRepublish = async () => {
     if (!publishStatus?.ready || !id) {
-      alert('Book is not ready for republishing. Please check all chapters are complete with images uploaded.');
+      showToast.warning('Book is not ready for republishing. Please check all chapters are complete with images uploaded.');
       return;
     }
 
@@ -424,13 +425,13 @@ export default function BookAdmin() {
     try {
       const result = await booksApi.republish(bookId);
       if (result.success) {
-        alert('Book republished successfully! Download will start automatically.');
+        showToast.success('Book republished successfully! Download will start automatically.');
         await booksApi.downloadPublished(bookId);
         await loadData(); // Reload to get updated status
       }
     } catch (error: any) {
       console.error('Failed to republish book:', error);
-      alert(`Failed to republish book: ${error.response?.data?.error || error.message}`);
+      showToast.error(`Failed to republish book: ${error.response?.data?.error || error.message}`);
     } finally {
       setRepublishing(false);
     }
@@ -446,10 +447,10 @@ export default function BookAdmin() {
       await adminApi.updatePublishWithoutChapterImages(bookId, checked);
       setPublishWithoutChapterImages(checked);
       await loadData(); // Reload to refresh publish status
-      alert('Setting updated successfully!');
+      showToast.success('Setting updated successfully!');
     } catch (error: any) {
       console.error('Failed to update setting:', error);
-      alert('Failed to update setting');
+      showToast.error('Failed to update setting');
       // Revert checkbox state on error
       setPublishWithoutChapterImages(!checked);
     } finally {
@@ -632,12 +633,12 @@ export default function BookAdmin() {
                       const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
                       if (bookId) {
                         await booksApi.cancelAudiobook(bookId);
-                        alert('Audiobook generation cancelled');
+                        showToast.success('Audiobook generation cancelled');
                         await loadAudiobookStatus();
                       }
                     } catch (error: any) {
                       console.error('Failed to cancel audiobook:', error);
-                      alert(`Failed to cancel audiobook: ${error.response?.data?.error || error.message}`);
+                      showToast.error(`Failed to cancel audiobook: ${error.response?.data?.error || error.message}`);
                     } finally {
                       setCancellingAudiobook(false);
                     }
@@ -661,12 +662,12 @@ export default function BookAdmin() {
                         const result = await booksApi.processAudioFiles(bookId);
                         if (result.success) {
                           const message = `Processed ${result.data.processed.length} audio files${result.data.failed.length > 0 ? `\n\nFailed: ${result.data.failed.map(f => f.file).join(', ')}` : ''}`;
-                          alert(message);
+                          showToast.info(message);
                         }
                       }
                     } catch (error: any) {
                       console.error('Failed to process audio files:', error);
-                      alert(`Failed to process audio files: ${error.response?.data?.error || error.message}`);
+                      showToast.error(`Failed to process audio files: ${error.response?.data?.error || error.message}`);
                     } finally {
                       setProcessingAudio(false);
                     }
@@ -718,10 +719,10 @@ export default function BookAdmin() {
                             audiobookStatus.voice,
                             audiobookStatus.model
                           );
-                          alert('Opening credits generated successfully!');
+                          showToast.success('Opening credits generated successfully!');
                         } catch (error: any) {
                           console.error('Failed to generate opening credits:', error);
-                          alert(`Failed to generate opening credits: ${error.response?.data?.error || error.message}`);
+                          showToast.error(`Failed to generate opening credits: ${error.response?.data?.error || error.message}`);
                         } finally {
                           setGeneratingCredits(null);
                         }
@@ -745,10 +746,10 @@ export default function BookAdmin() {
                             audiobookStatus.voice,
                             audiobookStatus.model
                           );
-                          alert('Closing credits generated successfully!');
+                          showToast.success('Closing credits generated successfully!');
                         } catch (error: any) {
                           console.error('Failed to generate closing credits:', error);
-                          alert(`Failed to generate closing credits: ${error.response?.data?.error || error.message}`);
+                          showToast.error(`Failed to generate closing credits: ${error.response?.data?.error || error.message}`);
                         } finally {
                           setGeneratingCredits(null);
                         }
@@ -772,10 +773,10 @@ export default function BookAdmin() {
                             audiobookStatus.voice,
                             audiobookStatus.model
                           );
-                          alert('Retail sample generated successfully!');
+                          showToast.success('Retail sample generated successfully!');
                         } catch (error: any) {
                           console.error('Failed to generate retail sample:', error);
-                          alert(`Failed to generate retail sample: ${error.response?.data?.error || error.message}`);
+                          showToast.error(`Failed to generate retail sample: ${error.response?.data?.error || error.message}`);
                         } finally {
                           setGeneratingCredits(null);
                         }

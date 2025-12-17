@@ -9,6 +9,11 @@ import promptsRouter from './routes/prompts';
 import jobsRouter from './routes/jobs';
 import adminRouter from './routes/admin';
 import writingStylesRouter from './routes/writingStyles';
+import authRouter from './routes/auth';
+import publishersRouter from './routes/publishers';
+import editingRequestsRouter from './routes/editingRequests';
+import reviewersRouter from './routes/reviewers';
+import subscriptionsRouter from './routes/subscriptions';
 
 // Get the directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -83,6 +88,11 @@ app.use('/api/audio', express.static(AUDIO_DIR, {
 }));
 
 // Routes
+app.use('/api/auth', authRouter);
+app.use('/api/subscriptions', subscriptionsRouter);
+app.use('/api/publishers', publishersRouter);
+app.use('/api/editing-requests', editingRequestsRouter);
+app.use('/api/reviewers', reviewersRouter);
 app.use('/api/books', booksRouter);
 app.use('/api/prompts', promptsRouter);
 app.use('/api/jobs', jobsRouter);

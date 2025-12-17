@@ -19,6 +19,8 @@ const BookContextSchema = new Schema({
 }, { _id: false });
 
 const BookSchema = new Schema<BookDocument>({
+  userId: { type: Schema.Types.ObjectId, ref: 'User' }, // Writer who created the book
+  publisherId: { type: Schema.Types.ObjectId, ref: 'Publisher' }, // Publisher currently editing (if accepted)
   title: { type: String, required: true },
   bookType: { type: String, enum: Object.values(BookType), required: true },
   niche: { type: String, enum: Object.values(Niche), required: true },

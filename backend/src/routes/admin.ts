@@ -8,8 +8,16 @@ import { GenerationJobModel } from '../models/GenerationJob';
 import { BookModel } from '../models/Book';
 import { BookOutlineModel } from '../models/BookOutline';
 import { TokenUsageModel } from '../models/TokenUsage';
+import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
+import { UserRole } from '../models/User';
+import { UserModel } from '../models/User';
+import { PublisherModel } from '../models/Publisher';
 
 const router = express.Router();
+
+// All admin routes require authentication and admin role
+router.use(authenticate);
+router.use(requireRole(UserRole.ADMIN));
 
 // Get the directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -793,6 +801,153 @@ router.post('/jobs/:jobId/requeue', async (req, res) => {
         jobId: job._id,
         newStatus,
         willResumeFrom: job.progress?.outline ? 'chapters' : 'outline'
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Get all books (admin view)
+router.get('/books', async (req: AuthRequest, res) => {
+  try {
+    const books = await BookModel.find()
+      .populate('userId', 'name email')
+      .populate('publisherId', 'name')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      success: true,
+      data: books
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Get all users
+router.get('/users', async (req: AuthRequest, res) => {
+  try {
+    const users = await UserModel.find()
+      .select('-password')
+      .populate('publisherId', 'name')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      success: true,
+      data: users
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Get all publishers
+router.get('/publishers', async (req: AuthRequest, res) => {
+  try {
+    const publishers = await PublisherModel.find()
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      success: true,
+      data: publishers
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Get admin dashboard stats
+router.get('/stats', async (req: AuthRequest, res) => {
+  try {
+    const [
+      totalBooks,
+      totalUsers,
+      totalPublishers,
+      totalJobs,
+      activeJobs,
+      completedBooks,
+      totalWriters,
+      totalReviewers
+    ] = await Promise.all([
+      BookModel.countDocuments(),
+      UserModel.countDocuments(),
+      PublisherModel.countDocuments(),
+      GenerationJobModel.countDocuments(),
+      GenerationJobModel.countDocuments({ status: { $in: ['pending', 'generating_outline', 'generating_chapters'] } }),
+      BookModel.countDocuments({ status: 'complete' }),
+      UserModel.countDocuments({ role: UserRole.WRITER }),
+      UserModel.countDocuments({ role: UserRole.REVIEWER })
+    ]);
+
+    // Get subscription stats
+    const subscriptionStats = await UserModel.aggregate([
+      {
+        $group: {
+          _id: '$subscriptionTier',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get books by status
+    const booksByStatus = await BookModel.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get jobs by status
+    const jobsByStatus = await GenerationJobModel.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        overview: {
+          totalBooks,
+          totalUsers,
+          totalPublishers,
+          totalJobs,
+          activeJobs,
+          completedBooks,
+          totalWriters,
+          totalReviewers
+        },
+        subscriptions: subscriptionStats,
+        booksByStatus: booksByStatus.reduce((acc, item) => {
+          acc[item._id || 'unknown'] = item.count;
+          return acc;
+        }, {} as Record<string, number>),
+        jobsByStatus: jobsByStatus.reduce((acc, item) => {
+          acc[item._id || 'unknown'] = item.count;
+          return acc;
+        }, {} as Record<string, number>)
       }
     });
   } catch (error: any) {

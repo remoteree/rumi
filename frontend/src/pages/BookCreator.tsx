@@ -2,11 +2,33 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookType, Niche, WritingStyle, BOOK_TYPES, NICHES, BookContext } from '@ai-kindle/shared';
 import { booksApi, writingStylesApi } from '../api/client';
-import '../index.css';
+import {
+  Container,
+  Paper,
+  Typography,
+  Button,
+  Box,
+  Stepper,
+  Step,
+  StepLabel,
+  Grid,
+  Card,
+  CardContent,
+  TextField,
+  Alert,
+  CircularProgress,
+  Chip,
+  FormControlLabel,
+  Checkbox,
+  Divider,
+} from '@mui/material';
+import { Add, ArrowBack, ArrowForward, CheckCircle } from '@mui/icons-material';
+
+const steps = ['Book Type & Niche', 'Book Details', 'Review & Create'];
 
 export default function BookCreator() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [activeStep, setActiveStep] = useState(0);
   const [bookType, setBookType] = useState<BookType | ''>('');
   const [niche, setNiche] = useState<Niche | ''>('');
   const [writingStyles, setWritingStyles] = useState<WritingStyle[]>([]);
@@ -26,7 +48,6 @@ export default function BookCreator() {
   const [savingWritingStyle, setSavingWritingStyle] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch writing styles on component mount
   useEffect(() => {
     const fetchWritingStyles = async () => {
       try {
@@ -57,13 +78,10 @@ export default function BookCreator() {
       });
 
       if (result.success && result.data) {
-        // Refresh the writing styles list
         const refreshResult = await writingStylesApi.getAll();
         if (refreshResult.success && refreshResult.data) {
           setWritingStyles(refreshResult.data);
         }
-
-        // Switch to selecting the newly saved style
         setSelectedWritingStyleId(result.data._id || '');
         setShowCustomWritingStyle(false);
         setCustomWritingStyle({ name: '', description: '' });
@@ -81,6 +99,31 @@ export default function BookCreator() {
     }
   };
 
+  const handleNext = () => {
+    if (activeStep === 0) {
+      if (!bookType || !niche) {
+        setError('Please select both book type and niche');
+        return;
+      }
+      if (showCustomWritingStyle && (customWritingStyle.name || customWritingStyle.description)) {
+        setError('Please save the writing style before proceeding, or cancel to select an existing style.');
+        return;
+      }
+    } else if (activeStep === 1) {
+      if (!title) {
+        setError('Please enter a book title');
+        return;
+      }
+    }
+    setError('');
+    setActiveStep((prevActiveStep) => prevActiveStep + 1);
+  };
+
+  const handleBack = () => {
+    setError('');
+    setActiveStep((prevActiveStep) => prevActiveStep - 1);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -93,7 +136,6 @@ export default function BookCreator() {
         return;
       }
 
-      // Determine writing style: use selected style
       let finalWritingStyle: string | undefined = undefined;
       
       if (selectedWritingStyleId) {
@@ -102,7 +144,6 @@ export default function BookCreator() {
           finalWritingStyle = selectedStyle.name;
         }
       } else if (showCustomWritingStyle && customWritingStyle.name && customWritingStyle.description) {
-        // If user hasn't saved the custom style yet, save it now
         try {
           const createResult = await writingStylesApi.create({
             name: customWritingStyle.name.trim(),
@@ -116,7 +157,6 @@ export default function BookCreator() {
             return;
           }
         } catch (err: any) {
-          // If style already exists, use the name
           if (err.response?.status === 400) {
             finalWritingStyle = customWritingStyle.name.trim();
           } else {
@@ -148,425 +188,423 @@ export default function BookCreator() {
   };
 
   return (
-    <div className="container">
-      <h1>Create New Book</h1>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" component="h1" fontWeight={600} gutterBottom>
+        Create New Book
+      </Typography>
 
-      {error && (
-        <div className="card" style={{ background: '#f8d7da', color: '#721c24', marginBottom: '1rem' }}>
-          {error}
-        </div>
-      )}
+      <Paper elevation={2} sx={{ p: 3, mt: 3 }}>
+        <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+          {steps.map((label) => (
+            <Step key={label}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
 
-      <form onSubmit={handleSubmit}>
-        {/* Step 1: Book Type, Niche & Writing Style */}
-        {step === 1 && (
-          <div className="card">
-            <h2>Step 1: Select Book Type, Niche & Writing Style</h2>
-            
-            <div className="form-group">
-              <label>Book Type *</label>
-              <div className="grid grid-3">
-                {BOOK_TYPES.map((type) => (
-                  <div
-                    key={type.id}
-                    onClick={() => setBookType(type.id)}
-                    style={{
-                      padding: '1rem',
-                      border: bookType === type.id ? '2px solid #007bff' : '1px solid #ddd',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      background: bookType === type.id ? '#e7f3ff' : 'white'
-                    }}
-                  >
-                    <h3>{type.name}</h3>
-                    <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.5rem' }}>
-                      {type.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
 
-            <div className="form-group">
-              <label>Niche *</label>
-              <div className="grid grid-2">
-                {NICHES.map((n) => (
-                  <div
-                    key={n.id}
-                    onClick={() => setNiche(n.id)}
-                    style={{
-                      padding: '1rem',
-                      border: niche === n.id ? '2px solid #007bff' : '1px solid #ddd',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      background: niche === n.id ? '#e7f3ff' : 'white'
-                    }}
-                  >
-                    <h3>{n.name}</h3>
-                    <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.5rem' }}>
-                      {n.focus}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <Box component="form" onSubmit={handleSubmit}>
+          {/* Step 1: Book Type, Niche & Writing Style */}
+          {activeStep === 0 && (
+            <Box>
+              <Typography variant="h5" gutterBottom fontWeight={600}>
+                Select Book Type, Niche & Writing Style
+              </Typography>
 
-            <div className="form-group">
-              <label>Writing Style</label>
-              <div style={{ marginBottom: '1rem' }}>
-                <button
-                  type="button"
+              <Box sx={{ mt: 3, mb: 4 }}>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Book Type *
+                </Typography>
+                <Grid container spacing={2}>
+                  {BOOK_TYPES.map((type) => (
+                    <Grid item xs={12} sm={6} md={4} key={type.id}>
+                      <Card
+                        sx={{
+                          cursor: 'pointer',
+                          border: bookType === type.id ? 2 : 1,
+                          borderColor: bookType === type.id ? 'primary.main' : 'divider',
+                          bgcolor: bookType === type.id ? 'primary.50' : 'background.paper',
+                          transition: 'all 0.2s',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: 3,
+                          },
+                        }}
+                        onClick={() => setBookType(type.id)}
+                      >
+                        <CardContent>
+                          <Typography variant="h6" fontWeight={600} gutterBottom>
+                            {type.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {type.description}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+
+              <Box sx={{ mt: 4, mb: 4 }}>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Niche *
+                </Typography>
+                <Grid container spacing={2}>
+                  {NICHES.map((n) => (
+                    <Grid item xs={12} sm={6} key={n.id}>
+                      <Card
+                        sx={{
+                          cursor: 'pointer',
+                          border: niche === n.id ? 2 : 1,
+                          borderColor: niche === n.id ? 'primary.main' : 'divider',
+                          bgcolor: niche === n.id ? 'primary.50' : 'background.paper',
+                          transition: 'all 0.2s',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: 3,
+                          },
+                        }}
+                        onClick={() => setNiche(n.id)}
+                      >
+                        <CardContent>
+                          <Typography variant="h6" fontWeight={600} gutterBottom>
+                            {n.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {n.focus}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+
+              <Box sx={{ mt: 4 }}>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Writing Style
+                </Typography>
+                <Button
+                  variant={showCustomWritingStyle ? 'contained' : 'outlined'}
+                  startIcon={<Add />}
                   onClick={() => {
                     setShowCustomWritingStyle(!showCustomWritingStyle);
                     if (!showCustomWritingStyle) {
                       setSelectedWritingStyleId('');
                     }
                   }}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px',
-                    background: showCustomWritingStyle ? '#e7f3ff' : 'white',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
+                  sx={{ mb: 2 }}
                 >
-                  {showCustomWritingStyle ? '✓ Creating New Style' : '+ Add New Writing Style'}
-                </button>
-              </div>
+                  {showCustomWritingStyle ? 'Creating New Style' : 'Add New Writing Style'}
+                </Button>
 
-              {showCustomWritingStyle ? (
-                <div style={{ padding: '1rem', border: '1px solid #ddd', borderRadius: '8px', background: '#f8f9fa', marginBottom: '1rem' }}>
-                  <div className="form-group">
-                    <label>Style Name *</label>
-                    <input
-                      type="text"
+                {showCustomWritingStyle ? (
+                  <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+                    <TextField
+                      fullWidth
+                      label="Style Name *"
                       value={customWritingStyle.name}
                       onChange={(e) => setCustomWritingStyle({ ...customWritingStyle, name: e.target.value })}
                       placeholder="e.g., Minimalist, Stream-of-Consciousness"
-                      style={{ width: '100%' }}
+                      margin="normal"
                     />
-                  </div>
-                  <div className="form-group">
-                    <label>Description *</label>
-                    <textarea
+                    <TextField
+                      fullWidth
+                      label="Description *"
                       value={customWritingStyle.description}
                       onChange={(e) => setCustomWritingStyle({ ...customWritingStyle, description: e.target.value })}
                       placeholder="Describe the writing style characteristics..."
-                      style={{ width: '100%', minHeight: '80px' }}
+                      multiline
+                      rows={3}
+                      margin="normal"
                     />
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                    <button
-                      type="button"
-                      onClick={handleSaveWritingStyle}
-                      disabled={savingWritingStyle || !customWritingStyle.name.trim() || !customWritingStyle.description.trim()}
-                      className="btn btn-success"
-                      style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                    >
-                      {savingWritingStyle ? 'Saving...' : 'Save Writing Style'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowCustomWritingStyle(false);
-                        setCustomWritingStyle({ name: '', description: '' });
-                      }}
-                      className="btn btn-secondary"
-                      style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.5rem' }}>
-                    Save the writing style to use it for this book and future books.
-                  </small>
-                </div>
-              ) : (
-                <div>
-                  {writingStyles.length === 0 ? (
-                    <div style={{ padding: '1rem', border: '1px solid #ddd', borderRadius: '8px', background: '#f8f9fa', textAlign: 'center', color: '#666' }}>
-                      <p>No writing styles yet. Click "+ Add New Writing Style" to create one.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-3">
-                      {writingStyles.map((style) => (
-                        <div
-                          key={style._id}
-                          onClick={() => setSelectedWritingStyleId(style._id || '')}
-                          style={{
-                            padding: '1rem',
-                            border: selectedWritingStyleId === style._id ? '2px solid #007bff' : '1px solid #ddd',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            background: selectedWritingStyleId === style._id ? '#e7f3ff' : 'white'
-                          }}
-                        >
-                          <h3>{style.name}</h3>
-                          <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.5rem' }}>
-                            {style.description}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                      <Button
+                        variant="contained"
+                        onClick={handleSaveWritingStyle}
+                        disabled={savingWritingStyle || !customWritingStyle.name.trim() || !customWritingStyle.description.trim()}
+                        startIcon={savingWritingStyle ? <CircularProgress size={20} /> : <CheckCircle />}
+                      >
+                        {savingWritingStyle ? 'Saving...' : 'Save Writing Style'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setShowCustomWritingStyle(false);
+                          setCustomWritingStyle({ name: '', description: '' });
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </Box>
+                  </Paper>
+                ) : (
+                  <Grid container spacing={2} sx={{ mt: 1 }}>
+                    {writingStyles.length === 0 ? (
+                      <Grid item xs={12}>
+                        <Alert severity="info">
+                          No writing styles yet. Click "Add New Writing Style" to create one.
+                        </Alert>
+                      </Grid>
+                    ) : (
+                      writingStyles.map((style) => (
+                        <Grid item xs={12} sm={6} md={4} key={style._id}>
+                          <Card
+                            sx={{
+                              cursor: 'pointer',
+                              border: selectedWritingStyleId === style._id ? 2 : 1,
+                              borderColor: selectedWritingStyleId === style._id ? 'primary.main' : 'divider',
+                              bgcolor: selectedWritingStyleId === style._id ? 'primary.50' : 'background.paper',
+                            }}
+                            onClick={() => setSelectedWritingStyleId(style._id || '')}
+                          >
+                            <CardContent>
+                              <Typography variant="h6" fontWeight={600}>
+                                {style.name}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                {style.description}
+                              </Typography>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ))
+                    )}
+                  </Grid>
+                )}
+              </Box>
+            </Box>
+          )}
 
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                // If user is creating a custom style but hasn't saved it, show error
-                if (showCustomWritingStyle && (customWritingStyle.name || customWritingStyle.description)) {
-                  setError('Please save the writing style before proceeding, or cancel to select an existing style.');
-                  return;
-                }
-                setStep(2);
-              }}
-              disabled={!bookType || !niche}
-            >
-              Next: Book Details
-            </button>
-          </div>
-        )}
+          {/* Step 2: Book Details */}
+          {activeStep === 1 && (
+            <Box>
+              <Typography variant="h5" gutterBottom fontWeight={600}>
+                Book Details & Context
+              </Typography>
 
-        {/* Step 2: Book Details */}
-        {step === 2 && (
-          <div className="card">
-            <h2>Step 2: Book Details & Context</h2>
-            
-            <div className="form-group">
-              <label>Book Title *</label>
-              <input
-                type="text"
+              <TextField
+                fullWidth
+                label="Book Title *"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter book title"
                 required
+                margin="normal"
+                autoFocus
               />
-            </div>
 
-            <div className="form-group">
-              <label>Description</label>
-              <textarea
+              <TextField
+                fullWidth
+                label="Description"
                 value={context.description}
                 onChange={(e) => setContext({ ...context, description: e.target.value })}
+                multiline
+                rows={4}
+                margin="normal"
                 placeholder="Describe what this book is about..."
               />
-            </div>
 
-            <div className="form-group">
-              <label>Target Audience</label>
-              <input
-                type="text"
-                value={context.targetAudience}
-                onChange={(e) => setContext({ ...context, targetAudience: e.target.value })}
-                placeholder="e.g., aspiring founders, mid-career engineers, children age 7-9"
-              />
-            </div>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Target Audience"
+                    value={context.targetAudience}
+                    onChange={(e) => setContext({ ...context, targetAudience: e.target.value })}
+                    margin="normal"
+                    placeholder="e.g., aspiring founders, mid-career engineers"
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Tone"
+                    value={context.tone}
+                    onChange={(e) => setContext({ ...context, tone: e.target.value })}
+                    margin="normal"
+                    placeholder="e.g., empathetic, humorous, concise"
+                  />
+                </Grid>
+              </Grid>
 
-            <div className="form-group">
-              <label>Tone</label>
-              <input
-                type="text"
-                value={context.tone}
-                onChange={(e) => setContext({ ...context, tone: e.target.value })}
-                placeholder="e.g., empathetic, humorous, concise"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Additional Notes</label>
-              <textarea
+              <TextField
+                fullWidth
+                label="Additional Notes"
                 value={context.additionalNotes}
                 onChange={(e) => setContext({ ...context, additionalNotes: e.target.value })}
+                multiline
+                rows={3}
+                margin="normal"
                 placeholder="Any additional context or requirements..."
               />
-            </div>
 
-            <div className="grid grid-2" style={{ marginTop: '1rem' }}>
-              <div className="form-group">
-                <label>Chapter Count</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={context.chapterCount || BOOK_TYPES.find(t => t.id === bookType)?.defaultChapterCount || ''}
-                  onChange={(e) => setContext({ 
-                    ...context, 
-                    chapterCount: e.target.value ? parseInt(e.target.value) : undefined 
-                  })}
-                  placeholder="Number of chapters"
-                />
-                <small style={{ color: '#666', fontSize: '0.875rem' }}>
-                  Default: {BOOK_TYPES.find(t => t.id === bookType)?.defaultChapterCount || 'Not set'}
-                </small>
-              </div>
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Chapter Count"
+                    type="number"
+                    value={context.chapterCount || BOOK_TYPES.find(t => t.id === bookType)?.defaultChapterCount || ''}
+                    onChange={(e) => setContext({ 
+                      ...context, 
+                      chapterCount: e.target.value ? parseInt(e.target.value) : undefined 
+                    })}
+                    margin="normal"
+                    inputProps={{ min: 1, max: 100 }}
+                    helperText={`Default: ${BOOK_TYPES.find(t => t.id === bookType)?.defaultChapterCount || 'Not set'}`}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    select
+                    label="Chapter Size"
+                    value={context.chapterSize || BOOK_TYPES.find(t => t.id === bookType)?.defaultChapterSize || ''}
+                    onChange={(e) => setContext({ 
+                      ...context, 
+                      chapterSize: e.target.value ? e.target.value as 'small' | 'medium' | 'large' : undefined 
+                    })}
+                    margin="normal"
+                    SelectProps={{ native: true }}
+                  >
+                    <option value="">Use default</option>
+                    <option value="small">Small (300-600 words)</option>
+                    <option value="medium">Medium (800-1200 words)</option>
+                    <option value="large">Large (1500-2500 words)</option>
+                  </TextField>
+                </Grid>
+              </Grid>
 
-              <div className="form-group">
-                <label>Chapter Size</label>
-                <select
-                  value={context.chapterSize || BOOK_TYPES.find(t => t.id === bookType)?.defaultChapterSize || ''}
-                  onChange={(e) => setContext({ 
-                    ...context, 
-                    chapterSize: e.target.value ? e.target.value as 'small' | 'medium' | 'large' : undefined 
-                  })}
-                >
-                  <option value="">Use default</option>
-                  <option value="small">Small (300-600 words)</option>
-                  <option value="medium">Medium (800-1200 words)</option>
-                  <option value="large">Large (1500-2500 words)</option>
-                </select>
-                <small style={{ color: '#666', fontSize: '0.875rem' }}>
-                  Default: {BOOK_TYPES.find(t => t.id === bookType)?.defaultChapterSize || 'Not set'}
-                </small>
-              </div>
-            </div>
-
-            <div className="form-group" style={{ marginTop: '1rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={context.usePerplexity || false}
-                  onChange={(e) => setContext({ ...context, usePerplexity: e.target.checked })}
-                  style={{ width: 'auto', cursor: 'pointer' }}
-                />
-                <span>
-                  <strong>Include Current News (Perplexity API)</strong>
-                </span>
-              </label>
-              <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem', marginLeft: '1.5rem' }}>
-                When enabled, Perplexity API will fetch current news and recent developments for each chapter.
-                OpenAI will still be used for concept explanations and content generation.
-                Requires PERPLEXITY_API_KEY to be configured.
-              </small>
-              {context.usePerplexity && (
-                <div style={{ marginTop: '1rem', marginLeft: '1.5rem' }}>
-                  <label>
-                    <strong>Topics for Perplexity Search:</strong>
-                    <textarea
-                      value={context.perplexityTopics || ''}
-                      onChange={(e) => setContext({ ...context, perplexityTopics: e.target.value })}
-                      placeholder="Enter topics, keywords, or themes to search for (one per line or comma-separated).&#10;&#10;Examples:&#10;AI developments&#10;Health trends&#10;Business news&#10;Technology updates"
-                      style={{ width: '100%', minHeight: '120px', marginTop: '0.5rem', fontFamily: 'inherit', fontSize: '0.875rem', padding: '0.5rem' }}
+              <Box sx={{ mt: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={context.usePerplexity || false}
+                      onChange={(e) => setContext({ ...context, usePerplexity: e.target.checked })}
                     />
-                  </label>
-                  <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
-                    These topics will be included in Perplexity searches for each chapter to ensure relevant current news and developments are found.
-                  </small>
-                </div>
-              )}
-            </div>
-
-            <div className="form-group" style={{ marginTop: '1rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={context.skipImagePrompts || false}
-                  onChange={(e) => setContext({ ...context, skipImagePrompts: e.target.checked })}
-                  style={{ width: 'auto', cursor: 'pointer' }}
+                  }
+                  label="Include Current News (Perplexity API)"
                 />
-                <span>
-                  <strong>Skip Image Prompts</strong>
-                </span>
-              </label>
-              <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem', marginLeft: '1.5rem' }}>
-                When enabled, no image prompts will be generated for chapters. This speeds up generation and reduces costs.
-                You can still add images manually later if needed.
-              </small>
-            </div>
+                {context.usePerplexity && (
+                  <TextField
+                    fullWidth
+                    label="Topics for Perplexity Search"
+                    value={context.perplexityTopics || ''}
+                    onChange={(e) => setContext({ ...context, perplexityTopics: e.target.value })}
+                    multiline
+                    rows={4}
+                    margin="normal"
+                    placeholder="Enter topics, keywords, or themes to search for..."
+                    helperText="These topics will be included in Perplexity searches for each chapter."
+                  />
+                )}
+              </Box>
 
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setStep(1)}
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => setStep(3)}
-                disabled={!title}
-              >
-                Next: Review
-              </button>
-            </div>
-          </div>
-        )}
+              <Box sx={{ mt: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={context.skipImagePrompts || false}
+                      onChange={(e) => setContext({ ...context, skipImagePrompts: e.target.checked })}
+                    />
+                  }
+                  label="Skip Image Prompts"
+                />
+              </Box>
+            </Box>
+          )}
 
-        {/* Step 3: Review & Create */}
-        {step === 3 && (
-          <div className="card">
-            <h2>Step 3: Review & Create</h2>
-            
-            <div className="card" style={{ background: '#f8f9fa' }}>
-              <h3>Book Type</h3>
-              <p>{BOOK_TYPES.find(t => t.id === bookType)?.name}</p>
-            </div>
+          {/* Step 3: Review & Create */}
+          {activeStep === 2 && (
+            <Box>
+              <Typography variant="h5" gutterBottom fontWeight={600}>
+                Review & Create
+              </Typography>
 
-            <div className="card" style={{ background: '#f8f9fa' }}>
-              <h3>Niche</h3>
-              <p>{NICHES.find(n => n.id === niche)?.name}</p>
-            </div>
+              <Grid container spacing={2} sx={{ mt: 2 }}>
+                <Grid item xs={12} md={6}>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Book Type</Typography>
+                    <Typography variant="body1" fontWeight={600}>
+                      {BOOK_TYPES.find(t => t.id === bookType)?.name}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Niche</Typography>
+                    <Typography variant="body1" fontWeight={600}>
+                      {NICHES.find(n => n.id === niche)?.name}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                {(selectedWritingStyleId || (showCustomWritingStyle && customWritingStyle.name)) && (
+                  <Grid item xs={12}>
+                    <Paper variant="outlined" sx={{ p: 2 }}>
+                      <Typography variant="subtitle2" color="text.secondary">Writing Style</Typography>
+                      <Typography variant="body1" fontWeight={600}>
+                        {showCustomWritingStyle && customWritingStyle.name 
+                          ? customWritingStyle.name 
+                          : writingStyles.find(ws => ws._id === selectedWritingStyleId)?.name}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                )}
+                <Grid item xs={12}>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Title</Typography>
+                    <Typography variant="body1" fontWeight={600}>
+                      {title}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                {context.description && (
+                  <Grid item xs={12}>
+                    <Paper variant="outlined" sx={{ p: 2 }}>
+                      <Typography variant="subtitle2" color="text.secondary">Description</Typography>
+                      <Typography variant="body1">{context.description}</Typography>
+                    </Paper>
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+          )}
 
-            {(selectedWritingStyleId || (showCustomWritingStyle && customWritingStyle.name)) && (
-              <div className="card" style={{ background: '#f8f9fa' }}>
-                <h3>Writing Style</h3>
-                {showCustomWritingStyle && customWritingStyle.name ? (
-                  <div>
-                    <p><strong>{customWritingStyle.name}</strong></p>
-                    <p style={{ fontSize: '0.875rem', color: '#666' }}>{customWritingStyle.description}</p>
-                  </div>
-                ) : selectedWritingStyleId ? (
-                  (() => {
-                    const selectedStyle = writingStyles.find(ws => ws._id === selectedWritingStyleId);
-                    return selectedStyle ? (
-                      <div>
-                        <p><strong>{selectedStyle.name}</strong></p>
-                        <p style={{ fontSize: '0.875rem', color: '#666' }}>{selectedStyle.description}</p>
-                      </div>
-                    ) : null;
-                  })()
-                ) : null}
-              </div>
-            )}
-
-            <div className="card" style={{ background: '#f8f9fa' }}>
-              <h3>Title</h3>
-              <p>{title}</p>
-            </div>
-
-            {context.description && (
-              <div className="card" style={{ background: '#f8f9fa' }}>
-                <h3>Description</h3>
-                <p>{context.description}</p>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setStep(2)}
-              >
-                Back
-              </button>
-              <button
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+            <Button
+              disabled={activeStep === 0}
+              onClick={handleBack}
+              startIcon={<ArrowBack />}
+            >
+              Back
+            </Button>
+            {activeStep === steps.length - 1 ? (
+              <Button
                 type="submit"
-                className="btn btn-success"
+                variant="contained"
                 disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : <CheckCircle />}
               >
                 {loading ? 'Creating...' : 'Create Book'}
-              </button>
-            </div>
-          </div>
-        )}
-      </form>
-    </div>
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                onClick={handleNext}
+                endIcon={<ArrowForward />}
+              >
+                Next
+              </Button>
+            )}
+          </Box>
+        </Box>
+      </Paper>
+    </Container>
   );
 }
-

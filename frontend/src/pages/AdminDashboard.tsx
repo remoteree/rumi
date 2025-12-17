@@ -1,11 +1,68 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BookType, Niche, BOOK_TYPES, NICHES, PromptType } from '@ai-kindle/shared';
+import { BookType, Niche, BOOK_TYPES, NICHES, PromptType, Book, User, Publisher } from '@ai-kindle/shared';
 import { promptsApi, adminApi } from '../api/client';
+import { showToast } from '../utils/toast';
+import {
+  Container,
+  Typography,
+  Box,
+  Tabs,
+  Tab,
+  Paper,
+  Grid,
+  Card,
+  CardContent,
+  CircularProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  Button,
+  TextField,
+  MenuItem,
+  LinearProgress,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Alert,
+} from '@mui/material';
+import {
+  ExpandMore,
+  Refresh,
+  Visibility,
+  Dashboard,
+  Book as BookIcon,
+  Work,
+  People,
+  Business,
+  Code,
+} from '@mui/icons-material';
+
+type TabType = 'overview' | 'books' | 'jobs' | 'users' | 'publishers' | 'prompts';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'prompts' | 'jobs'>('prompts');
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
   
+  // Overview/Stats state
+  const [stats, setStats] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // Books tab state
+  const [books, setBooks] = useState<Book[]>([]);
+  const [booksLoading, setBooksLoading] = useState(false);
+
+  // Users tab state
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  // Publishers tab state
+  const [publishers, setPublishers] = useState<Publisher[]>([]);
+  const [publishersLoading, setPublishersLoading] = useState(false);
+
   // Prompts tab state
   const [selectedBookType, setSelectedBookType] = useState<BookType | ''>('');
   const [selectedNiche, setSelectedNiche] = useState<Niche | ''>('');
@@ -19,19 +76,79 @@ export default function AdminDashboard() {
   const [requeueing, setRequeueing] = useState<string | null>(null);
 
   useEffect(() => {
-    if (selectedBookType && selectedNiche && activeTab === 'prompts') {
-      loadPrompts();
-    }
-  }, [selectedBookType, selectedNiche, activeTab]);
-
-  useEffect(() => {
-    if (activeTab === 'jobs') {
+    if (activeTab === 'overview') {
+      loadStats();
+    } else if (activeTab === 'books') {
+      loadBooks();
+    } else if (activeTab === 'users') {
+      loadUsers();
+    } else if (activeTab === 'publishers') {
+      loadPublishers();
+    } else if (activeTab === 'jobs') {
       loadJobs();
       // Refresh jobs every 10 seconds
       const interval = setInterval(loadJobs, 10000);
       return () => clearInterval(interval);
+    } else if (selectedBookType && selectedNiche && activeTab === 'prompts') {
+      loadPrompts();
     }
-  }, [activeTab]);
+  }, [activeTab, selectedBookType, selectedNiche]);
+
+  const loadStats = async () => {
+    setStatsLoading(true);
+    try {
+      const result = await adminApi.getStats();
+      if (result.success && result.data) {
+        setStats(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load stats:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const loadBooks = async () => {
+    setBooksLoading(true);
+    try {
+      const result = await adminApi.getAllBooks();
+      if (result.success && result.data) {
+        setBooks(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load books:', error);
+    } finally {
+      setBooksLoading(false);
+    }
+  };
+
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const result = await adminApi.getAllUsers();
+      if (result.success && result.data) {
+        setUsers(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const loadPublishers = async () => {
+    setPublishersLoading(true);
+    try {
+      const result = await adminApi.getAllPublishers();
+      if (result.success && result.data) {
+        setPublishers(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load publishers:', error);
+    } finally {
+      setPublishersLoading(false);
+    }
+  };
 
   const loadPrompts = async () => {
     if (!selectedBookType || !selectedNiche) return;
@@ -80,25 +197,28 @@ export default function AdminDashboard() {
     try {
       await adminApi.requeueJob(jobId);
       await loadJobs();
-      alert('Job requeued successfully');
+      showToast.success('Job requeued successfully');
     } catch (error: any) {
-      alert(`Failed to requeue job: ${error.message}`);
+      showToast.error(`Failed to requeue job: ${error.message}`);
     } finally {
       setRequeueing(null);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const badges: Record<string, string> = {
-      pending: 'badge-info',
-      generating_outline: 'badge-warning',
-      outline_complete: 'badge-info',
-      generating_chapters: 'badge-warning',
-      complete: 'badge-success',
-      failed: 'badge-danger',
-      paused: 'badge-info'
+  const getStatusColor = (status: string): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
+    const colors: Record<string, "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning"> = {
+      pending: 'info',
+      generating_outline: 'warning',
+      outline_complete: 'info',
+      generating_chapters: 'warning',
+      complete: 'success',
+      failed: 'error',
+      paused: 'info',
+      draft: 'default',
+      generating: 'warning',
+      published: 'info',
     };
-    return badges[status] || 'badge-info';
+    return colors[status] || 'default';
   };
 
   const groupedPrompts = prompts.reduce((acc: any, prompt: any) => {
@@ -109,261 +229,644 @@ export default function AdminDashboard() {
     return acc;
   }, {});
 
+  const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
+    { id: 'overview', label: 'Overview', icon: <Dashboard /> },
+    { id: 'books', label: 'All Books', icon: <BookIcon /> },
+    { id: 'jobs', label: 'Jobs', icon: <Work /> },
+    { id: 'users', label: 'Users', icon: <People /> },
+    { id: 'publishers', label: 'Publishers', icon: <Business /> },
+    { id: 'prompts', label: 'Prompts', icon: <Code /> },
+  ];
+
   return (
-    <div className="container">
-      <h1>Admin Dashboard</h1>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Typography variant="h4" component="h1" fontWeight={600} gutterBottom>
+        Admin Dashboard
+      </Typography>
 
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '2px solid #ddd' }}>
-        <button
-          onClick={() => setActiveTab('prompts')}
-          className="btn"
-          style={{
-            background: activeTab === 'prompts' ? '#007bff' : 'transparent',
-            color: activeTab === 'prompts' ? 'white' : '#007bff',
-            border: '1px solid #007bff',
-            borderRadius: '4px 4px 0 0',
-            padding: '0.75rem 1.5rem',
-            cursor: 'pointer'
-          }}
+      <Paper sx={{ mb: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(e, newValue) => setActiveTab(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
-          Prompt Management
-        </button>
-        <button
-          onClick={() => setActiveTab('jobs')}
-          className="btn"
-          style={{
-            background: activeTab === 'jobs' ? '#007bff' : 'transparent',
-            color: activeTab === 'jobs' ? 'white' : '#007bff',
-            border: '1px solid #007bff',
-            borderRadius: '4px 4px 0 0',
-            padding: '0.75rem 1.5rem',
-            cursor: 'pointer'
-          }}
-        >
-          Generation Jobs
-        </button>
-      </div>
+        {tabs.map((tab) => (
+            <Tab
+            key={tab.id}
+              value={tab.id}
+              label={tab.label}
+              icon={tab.icon}
+              iconPosition="start"
+            />
+          ))}
+        </Tabs>
+      </Paper>
 
-      {activeTab === 'jobs' ? (
-        <div>
-          <div className="card">
-            <h2>All Generation Jobs</h2>
+      {activeTab === 'overview' && (
+        <Box>
+          {statsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : stats ? (
+            <>
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h3" color="primary.main" fontWeight={700}>
+                  {stats.overview.totalBooks}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Total Books
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h3" color="success.main" fontWeight={700}>
+                  {stats.overview.totalUsers}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Total Users
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h3" color="warning.main" fontWeight={700}>
+                  {stats.overview.totalJobs}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Total Jobs
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h3" color="info.main" fontWeight={700}>
+                  {stats.overview.totalPublishers}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Publishers
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom fontWeight={600}>
+                        Books by Status
+                      </Typography>
+                      <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }}>
+                        {Object.entries(stats.booksByStatus).map(([status, count]: [string, any]) => (
+                          <Box
+                            component="li"
+                            key={status}
+                            sx={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              py: 1,
+                              borderBottom: '1px solid',
+                              borderColor: 'divider',
+                            }}
+                          >
+                            <Typography variant="body2">{status}</Typography>
+                            <Chip label={count} size="small" color={getStatusColor(status)} />
+                          </Box>
+                        ))}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom fontWeight={600}>
+                        Jobs by Status
+                      </Typography>
+                      <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }}>
+                        {Object.entries(stats.jobsByStatus).map(([status, count]: [string, any]) => (
+                          <Box
+                            component="li"
+                            key={status}
+                            sx={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              py: 1,
+                              borderBottom: '1px solid',
+                              borderColor: 'divider',
+                            }}
+                          >
+                            <Typography variant="body2">{status}</Typography>
+                            <Chip label={count} size="small" color={getStatusColor(status)} />
+                          </Box>
+                        ))}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </>
+          ) : null}
+        </Box>
+      )}
+
+      {activeTab === 'books' && (
+        <Paper>
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" fontWeight={600}>
+              All Books
+            </Typography>
+          </Box>
+            {booksLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+            ) : books.length === 0 ? (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <Typography color="text.secondary">No books found</Typography>
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Title</TableCell>
+                    <TableCell>Writer</TableCell>
+                    <TableCell>Publisher</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                    {books.map((book: any) => (
+                    <TableRow key={book._id} hover>
+                      <TableCell>
+                        <Typography
+                          component={Link}
+                          to={`/books/${book._id}`}
+                          sx={{ textDecoration: 'none', color: 'primary.main', fontWeight: 500 }}
+                        >
+                            {book.title}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{book.userId?.name || 'Unknown'}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {book.userId?.email}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{book.publisherId?.name || '-'}</TableCell>
+                      <TableCell>
+                        <Chip label={book.status} color={getStatusColor(book.status)} size="small" />
+                      </TableCell>
+                      <TableCell>
+                          {BOOK_TYPES.find(t => t.id === book.bookType)?.name || book.bookType}
+                      </TableCell>
+                      <TableCell>
+                          {book.createdAt ? new Date(book.createdAt).toLocaleDateString() : '-'}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Button
+                          component={Link}
+                          to={`/books/${book._id}/admin`}
+                          size="small"
+                          variant="outlined"
+                          startIcon={<Visibility />}
+                        >
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+      )}
+
+      {activeTab === 'users' && (
+        <Paper>
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" fontWeight={600}>
+              All Users
+            </Typography>
+          </Box>
+            {usersLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+            ) : users.length === 0 ? (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <Typography color="text.secondary">No users found</Typography>
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Role</TableCell>
+                    <TableCell>Subscription</TableCell>
+                    <TableCell align="right">Credits</TableCell>
+                    <TableCell>Created</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                    {users.map((user: any) => (
+                    <TableRow key={user._id} hover>
+                      <TableCell>{user.name}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Chip label={user.role} size="small" color="info" />
+                      </TableCell>
+                      <TableCell>
+                          {user.subscriptionTier ? (
+                          <Box>
+                            <Typography variant="body2" fontWeight={500}>
+                              {user.subscriptionTier}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {user.subscriptionStatus || 'inactive'}
+                            </Typography>
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            None
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell align="right">{user.bookCredits || 0}</TableCell>
+                      <TableCell>
+                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+      )}
+
+      {activeTab === 'publishers' && (
+        <Paper>
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" fontWeight={600}>
+              All Publishers
+            </Typography>
+          </Box>
+            {publishersLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+            ) : publishers.length === 0 ? (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <Typography color="text.secondary">No publishers found</Typography>
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>User</TableCell>
+                    <TableCell>Description</TableCell>
+                    <TableCell>Rates</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Created</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                    {publishers.map((publisher: any) => (
+                    <TableRow key={publisher._id} hover>
+                      <TableCell>
+                        <Typography fontWeight={500}>{publisher.name}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{publisher.userId?.name || 'Unknown'}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {publisher.userId?.email}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {publisher.description || '-'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                          {publisher.rates?.editingRate ? (
+                          <Typography variant="body2">
+                            ${publisher.rates.editingRate}/{publisher.rates.editingRateType}
+                          </Typography>
+                          ) : (
+                            '-'
+                          )}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={publisher.isActive ? 'Active' : 'Inactive'}
+                          color={publisher.isActive ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                          {publisher.createdAt ? new Date(publisher.createdAt).toLocaleDateString() : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+      )}
+
+      {activeTab === 'jobs' && (
+        <Paper>
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" fontWeight={600}>
+              All Generation Jobs
+            </Typography>
+          </Box>
             {jobsLoading ? (
-              <p>Loading jobs...</p>
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
             ) : jobs.length === 0 ? (
-              <p>No jobs found</p>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #ddd', background: '#f8f9fa' }}>
-                      <th style={{ textAlign: 'left', padding: '0.75rem' }}>Book</th>
-                      <th style={{ textAlign: 'left', padding: '0.75rem' }}>Status</th>
-                      <th style={{ textAlign: 'center', padding: '0.75rem' }}>Progress</th>
-                      <th style={{ textAlign: 'right', padding: '0.75rem' }}>Tokens</th>
-                      <th style={{ textAlign: 'right', padding: '0.75rem' }}>Cost</th>
-                      <th style={{ textAlign: 'left', padding: '0.75rem' }}>Chapters</th>
-                      <th style={{ textAlign: 'left', padding: '0.75rem' }}>Created</th>
-                      <th style={{ textAlign: 'center', padding: '0.75rem' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jobs.map((job: any) => (
-                      <tr key={job._id} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={{ padding: '0.75rem' }}>
-                          <Link
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <Typography color="text.secondary">No jobs found</Typography>
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Book</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell align="center">Progress</TableCell>
+                    <TableCell align="right">Tokens</TableCell>
+                    <TableCell align="right">Cost</TableCell>
+                    <TableCell>Chapters</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {jobs.map((job: any) => {
+                    const progressPercent = job.totalChapters
+                      ? ((job.currentChapter || 0) / job.totalChapters) * 100
+                      : 0;
+                    return (
+                      <TableRow key={job._id} hover>
+                        <TableCell>
+                          <Typography
+                            component={Link}
                             to={`/books/${job.bookId}/admin`}
-                            style={{ textDecoration: 'none', color: '#007bff', fontWeight: '500' }}
+                            sx={{ textDecoration: 'none', color: 'primary.main', fontWeight: 500 }}
                           >
                             {job.bookTitle}
-                          </Link>
-                          <div style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.25rem' }}>
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
                             {BOOK_TYPES.find(t => t.id === job.bookType)?.name} • {NICHES.find(n => n.id === job.niche)?.name}
-                          </div>
-                        </td>
-                        <td style={{ padding: '0.75rem' }}>
-                          <span className={`badge ${getStatusBadge(job.status)}`}>
-                            {job.status}
-                          </span>
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={job.status} color={getStatusColor(job.status)} size="small" />
                           {job.error && (
-                            <div style={{ fontSize: '0.75rem', color: '#dc3545', marginTop: '0.25rem', maxWidth: '200px' }}>
+                            <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5, maxWidth: 200 }}>
                               {job.error}
-                            </div>
+                            </Typography>
                           )}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                        </TableCell>
+                        <TableCell align="center">
                           {job.totalChapters ? (
-                            <div>
-                              <div>{job.currentChapter || 0} / {job.totalChapters}</div>
-                              <div className="progress-bar" style={{ width: '100px', margin: '0.25rem auto 0' }}>
-                                <div
-                                  className="progress-bar-fill"
-                                  style={{
-                                    width: `${((job.currentChapter || 0) / job.totalChapters) * 100}%`
-                                  }}
-                                />
-                              </div>
-                            </div>
+                            <Box>
+                              <Typography variant="body2">
+                                {job.currentChapter || 0} / {job.totalChapters}
+                              </Typography>
+                              <LinearProgress
+                                variant="determinate"
+                                value={progressPercent}
+                                sx={{ mt: 0.5, width: 100 }}
+                              />
+                            </Box>
                           ) : (
-                            <span style={{ color: '#666' }}>-</span>
+                            <Typography variant="body2" color="text.secondary">-</Typography>
                           )}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2">
                           {job.tokenUsage.total.toLocaleString()}
+                          </Typography>
                           {job.tokenUsage.breakdown > 0 && (
-                            <div style={{ fontSize: '0.75rem', color: '#666' }}>
+                            <Typography variant="caption" color="text.secondary">
                               {job.tokenUsage.breakdown} steps
-                            </div>
+                            </Typography>
                           )}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                        </TableCell>
+                        <TableCell align="right">
                           {job.tokenUsage.cost > 0 ? `$${job.tokenUsage.cost.toFixed(4)}` : '-'}
-                        </td>
-                        <td style={{ padding: '0.75rem' }}>
-                          <div style={{ fontSize: '0.875rem' }}>
-                            <div>Text: {job.chapters.withText}/{job.chapters.total}</div>
-                            <div>Image: {job.chapters.withImage}/{job.chapters.total}</div>
-                            <div>Complete: {job.chapters.complete}/{job.chapters.total}</div>
-                          </div>
-                        </td>
-                        <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: '#666' }}>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            Text: {job.chapters.withText}/{job.chapters.total}
+                          </Typography>
+                          <Typography variant="body2">
+                            Image: {job.chapters.withImage}/{job.chapters.total}
+                          </Typography>
+                          <Typography variant="body2">
+                            Complete: {job.chapters.complete}/{job.chapters.total}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
                           {job.createdAt ? new Date(job.createdAt).toLocaleString() : '-'}
+                          </Typography>
                           {job.completedAt && (
-                            <div style={{ marginTop: '0.25rem' }}>
+                            <Typography variant="caption" color="text.secondary" display="block">
                               Completed: {new Date(job.completedAt).toLocaleString()}
-                            </div>
+                            </Typography>
                           )}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                        </TableCell>
+                        <TableCell align="center">
                           {(job.status === 'failed' || job.status === 'paused') && (
-                            <button
+                            <Button
                               onClick={() => handleRequeue(job._id)}
-                              className="btn btn-success"
+                              variant="contained"
+                              color="success"
+                              size="small"
                               disabled={requeueing === job._id}
-                              style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
+                              startIcon={requeueing === job._id ? <CircularProgress size={16} /> : <Refresh />}
                             >
                               {requeueing === job._id ? 'Requeuing...' : 'Requeue'}
-                            </button>
+                            </Button>
                           )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div>
-          <h2>Prompt Management</h2>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+      )}
 
-          <div className="card">
-            <h2>Select Book Type & Niche</h2>
-            <div className="grid grid-2" style={{ marginBottom: '1rem' }}>
-              <div className="form-group">
-                <label>Book Type</label>
-                <select
+      {activeTab === 'prompts' && (
+        <Box>
+          <Paper sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h6" gutterBottom fontWeight={600}>
+              Select Book Type & Niche
+            </Typography>
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Book Type"
                   value={selectedBookType}
                   onChange={(e) => setSelectedBookType(e.target.value as BookType)}
                 >
-                  <option value="">Select...</option>
+                  <MenuItem value="">Select...</MenuItem>
                   {BOOK_TYPES.map((type) => (
-                    <option key={type.id} value={type.id}>{type.name}</option>
+                    <MenuItem key={type.id} value={type.id}>
+                      {type.name}
+                    </MenuItem>
                   ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Niche</label>
-                <select
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Niche"
                   value={selectedNiche}
                   onChange={(e) => setSelectedNiche(e.target.value as Niche)}
                 >
-                  <option value="">Select...</option>
+                  <MenuItem value="">Select...</MenuItem>
                   {NICHES.map((niche) => (
-                    <option key={niche.id} value={niche.id}>{niche.name}</option>
+                    <MenuItem key={niche.id} value={niche.id}>
+                      {niche.name}
+                    </MenuItem>
                   ))}
-                </select>
-              </div>
-            </div>
-            <button
+                </TextField>
+              </Grid>
+            </Grid>
+            <Button
               onClick={handleGeneratePrompts}
-              className="btn btn-primary"
+              variant="contained"
               disabled={!selectedBookType || !selectedNiche || loading}
+              startIcon={loading ? <CircularProgress size={20} /> : <Refresh />}
             >
               {loading ? 'Generating...' : 'Generate/Refresh Prompts'}
-            </button>
-          </div>
+            </Button>
+          </Paper>
 
           {selectedBookType && selectedNiche && (
-            <div className="card">
-              <h2>Prompt Versions</h2>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom fontWeight={600}>
+                Prompt Versions
+              </Typography>
               {loading ? (
-                <p>Loading...</p>
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress />
+                </Box>
               ) : prompts.length === 0 ? (
-                <p>No prompts found. Click "Generate/Refresh Prompts" to create them.</p>
+                <Alert severity="info">
+                  No prompts found. Click "Generate/Refresh Prompts" to create them.
+                </Alert>
               ) : (
                 Object.entries(groupedPrompts).map(([promptType, versions]: [string, any]) => (
-                  <div key={promptType} style={{ marginBottom: '2rem' }}>
-                    <h3>{promptType}</h3>
+                  <Box key={promptType} sx={{ mb: 3 }}>
+                    <Typography variant="h6" gutterBottom fontWeight={600}>
+                      {promptType}
+                    </Typography>
                     {versions.map((prompt: any) => (
-                      <div key={prompt._id} className="card" style={{ background: '#f8f9fa', marginTop: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <strong>Version {prompt.version}</strong>
+                      <Accordion key={prompt._id} sx={{ mb: 1 }}>
+                        <AccordionSummary expandIcon={<ExpandMore />}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', pr: 2 }}>
+                            <Typography fontWeight={600}>Version {prompt.version}</Typography>
                             {prompt.metadata?.createdAt && (
-                              <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.25rem' }}>
-                                Created: {new Date(prompt.metadata.createdAt).toLocaleString()}
-                              </p>
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(prompt.metadata.createdAt).toLocaleString()}
+                              </Typography>
                             )}
-                          </div>
-                          <button
-                            className="btn btn-secondary"
-                            onClick={() => setExpandedPrompt(
-                              expandedPrompt === prompt._id ? null : prompt._id
-                            )}
-                          >
-                            {expandedPrompt === prompt._id ? 'Hide' : 'Show'}
-                          </button>
-                        </div>
-                        {expandedPrompt === prompt._id && (
-                          <div style={{ marginTop: '1rem' }}>
-                            <div style={{ marginBottom: '1rem' }}>
-                              <strong>Variables:</strong>
-                              <div style={{ marginTop: '0.5rem' }}>
+                          </Box>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          <Box sx={{ mb: 2 }}>
+                            <Typography variant="subtitle2" gutterBottom fontWeight={600}>
+                              Variables:
+                            </Typography>
+                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                                 {prompt.variables.map((v: string, i: number) => (
-                                  <span key={i} className="badge badge-info" style={{ marginRight: '0.5rem' }}>
-                                    {v}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <div>
-                              <strong>Prompt:</strong>
-                              <pre style={{
-                                background: 'white',
-                                padding: '1rem',
-                                borderRadius: '4px',
+                                <Chip key={i} label={v} size="small" color="info" />
+                              ))}
+                            </Box>
+                          </Box>
+                          <Box>
+                            <Typography variant="subtitle2" gutterBottom fontWeight={600}>
+                              Prompt:
+                            </Typography>
+                            <Paper
+                              variant="outlined"
+                              sx={{
+                                p: 2,
+                                bgcolor: 'grey.50',
+                                maxHeight: 400,
                                 overflow: 'auto',
-                                marginTop: '0.5rem',
-                                fontSize: '0.875rem',
-                                whiteSpace: 'pre-wrap'
-                              }}>
+                              }}
+                            >
+                              <Typography
+                                component="pre"
+                                variant="body2"
+                                sx={{
+                                  fontFamily: 'monospace',
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                  m: 0,
+                                }}
+                              >
                                 {prompt.prompt}
-                              </pre>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                              </Typography>
+                            </Paper>
+                          </Box>
+                        </AccordionDetails>
+                      </Accordion>
                     ))}
-                  </div>
+                  </Box>
                 ))
               )}
-            </div>
+            </Paper>
           )}
-        </div>
+        </Box>
       )}
-    </div>
+    </Container>
   );
 }
-

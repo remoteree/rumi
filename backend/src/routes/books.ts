@@ -6,15 +6,17 @@ import { ChapterContentModel } from '../models/ChapterContent';
 import { TokenUsageModel } from '../models/TokenUsage';
 import { generatePromptsForCombo } from '../services/promptGenerator';
 import { BookType, Niche } from '@ai-kindle/shared';
+import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
 // Create a new book
-router.post('/', async (req, res) => {
+router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
     const { title, bookType, niche, writingStyle, context } = req.body;
 
     const book = new BookModel({
+      userId: req.user!._id,
       title,
       bookType,
       niche,
@@ -40,10 +42,35 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get all books
-router.get('/', async (req, res) => {
+// Get all books (filtered by user role)
+router.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
-    const books = await BookModel.find().sort({ createdAt: -1 });
+    let query: any = {};
+    
+    // Admins see all books
+    if (req.user!.role === 'admin') {
+      // No filter - admins see everything
+    }
+    // Writers see their own books
+    else if (req.user!.role === 'writer') {
+      query.userId = req.user!._id;
+    }
+    // Publishers see books assigned to them
+    else if (req.user!.role === 'publisher') {
+      const { PublisherModel } = await import('../models/Publisher');
+      const publisher = await PublisherModel.findOne({ userId: req.user!._id });
+      if (publisher) {
+        query.publisherId = publisher._id;
+      } else {
+        query.publisherId = null; // No books if no publisher profile
+      }
+    }
+    // Reviewers see books assigned to their publisher
+    else if (req.user!.role === 'reviewer' && req.user!.publisherId) {
+      query.publisherId = req.user!.publisherId;
+    }
+
+    const books = await BookModel.find(query).sort({ createdAt: -1 });
     res.json({ success: true, data: books });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -95,11 +122,38 @@ router.put('/:id', async (req, res) => {
 });
 
 // Start generation (create prompts if needed, then queue job)
-router.post('/:id/start-generation', async (req, res) => {
+router.post('/:id/start-generation', authenticate, async (req: AuthRequest, res) => {
   try {
     const book = await BookModel.findById(req.params.id);
     if (!book) {
       return res.status(404).json({ success: false, error: 'Book not found' });
+    }
+
+    // Verify book belongs to user (for writers, admins can access any book)
+    if (req.user!.role === 'writer' && book.userId?.toString() !== req.user!._id) {
+      return res.status(403).json({ success: false, error: 'Not authorized' });
+    }
+
+    // Check subscription credits for writers (admins bypass credit check)
+    if (req.user!.role === 'writer') {
+      const { UserModel } = await import('../models/User');
+      const user = await UserModel.findById(req.user!._id);
+      
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'User not found' });
+      }
+
+      // Check if user has credits
+      if ((user.bookCredits || 0) < 1) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Insufficient credits. Please subscribe to a plan or purchase credits.' 
+        });
+      }
+
+      // Deduct credit
+      user.bookCredits = (user.bookCredits || 0) - 1;
+      await user.save();
     }
 
     // Check if prompts exist, if not create them

@@ -206,9 +206,101 @@ export interface TokenUsage {
   createdAt?: Date;
 }
 
+// User Roles
+export enum UserRole {
+  WRITER = 'writer',
+  PUBLISHER = 'publisher',
+  REVIEWER = 'reviewer',
+  ADMIN = 'admin'
+}
+
+// User Types
+export interface User {
+  _id?: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  publisherId?: string; // For reviewers
+  subscriptionTier?: 'starter' | 'pro' | 'one_off' | null;
+  subscriptionStatus?: 'active' | 'cancelled' | 'expired';
+  subscriptionExpiresAt?: Date;
+  bookCredits?: number;
+  createdAt?: Date;
+}
+
+// Publisher Types
+export interface Publisher {
+  _id?: string;
+  userId: string;
+  name: string;
+  description?: string;
+  rates: {
+    editingRate?: number;
+    editingRateType?: 'per_word' | 'per_hour';
+    proofreadingRate?: number;
+    proofreadingRateType?: 'per_word' | 'per_hour';
+  };
+  isActive: boolean;
+  createdAt?: Date;
+}
+
+// Editing Request Types
+export enum EditingRequestStatus {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  REJECTED = 'rejected',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled'
+}
+
+export interface EditingRequest {
+  _id?: string;
+  bookId: string;
+  writerId: string;
+  publisherId: string;
+  status: EditingRequestStatus;
+  message?: string;
+  responseMessage?: string;
+  estimatedCost?: number;
+  createdAt?: Date;
+  acceptedAt?: Date;
+}
+
+// Book Version Types
+export interface BookVersion {
+  _id?: string;
+  bookId: string;
+  versionNumber: number;
+  editedBy: string;
+  editedByRole: 'writer' | 'reviewer';
+  changes: {
+    chapterNumber?: number;
+    field: string;
+    oldValue?: string;
+    newValue: string;
+    changeType: 'edit' | 'add' | 'delete';
+  }[];
+  notes?: string;
+  createdAt?: Date;
+}
+
+// Subscription Tiers
+export interface SubscriptionTier {
+  id: 'starter' | 'pro' | 'one_off';
+  name: string;
+  price: number;
+  priceType: 'monthly' | 'one_time';
+  features: string[];
+  bookCredits: number;
+  rolloverCredits?: boolean;
+  rolloverMaxMonths?: number;
+}
+
 // Book Model
 export interface Book {
   _id?: string;
+  userId?: string; // Writer who created the book
+  publisherId?: string; // Publisher currently editing (if accepted)
   title: string;
   bookType: BookType;
   niche: Niche;
