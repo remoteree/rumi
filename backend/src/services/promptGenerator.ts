@@ -1,5 +1,5 @@
 import { BookType, Niche, PromptType, BOOK_TYPES, NICHES } from '@ai-kindle/shared';
-import { PromptVersionModel } from '../models/PromptVersion';
+import { PromptVersionModel } from '../models/PromptVersion.js';
 
 interface PromptTemplate {
   prompt: string;

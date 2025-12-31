@@ -31,7 +31,7 @@ const ArtDirectionSchema = new Schema({
 }, { _id: false });
 
 const BookOutlineSchema = new Schema<BookOutlineDocument>({
-  bookId: { type: Schema.Types.ObjectId, ref: 'Book', required: true },
+  bookId: { type: Schema.Types.ObjectId as any, ref: 'Book', required: true },
   structure: {
     totalChapters: { type: Number, required: true },
     chapters: [ChapterOutlineNodeSchema]

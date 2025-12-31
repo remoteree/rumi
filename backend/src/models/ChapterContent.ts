@@ -24,7 +24,7 @@ const ChapterMetadataSchema = new Schema({
 }, { _id: false });
 
 const ChapterContentSchema = new Schema<ChapterContentDocument>({
-  bookId: { type: Schema.Types.ObjectId, ref: 'Book', required: true },
+  bookId: { type: Schema.Types.ObjectId as any, ref: 'Book', required: true },
   chapterNumber: { type: Number, required: true },
   text: { type: String },
   textPrompt: { type: String }, // The actual prompt used to generate the text
@@ -45,7 +45,7 @@ const ChapterContentSchema = new Schema<ChapterContentDocument>({
 
 ChapterContentSchema.index({ bookId: 1, chapterNumber: 1 }, { unique: true });
 ChapterContentSchema.pre('save', function(next) {
-  this.updatedAt = new Date();
+  (this as any).updatedAt = new Date();
   next();
 });
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import { Book, BookVersion } from '@ai-kindle/shared';
 import { reviewersApi } from '../api/client';
 import { useTheme } from '@mui/material/styles';
@@ -16,7 +16,7 @@ export default function ReviewerDashboard() {
   const [editingChapter, setEditingChapter] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const [notes, setNotes] = useState('');
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const theme = useTheme();
 
   useEffect(() => {

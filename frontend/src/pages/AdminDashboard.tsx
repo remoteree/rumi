@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BookType, Niche, BOOK_TYPES, NICHES, PromptType, Book, User, Publisher } from '@ai-kindle/shared';
+import { BookType, Niche, BOOK_TYPES, NICHES, Book, User, Publisher } from '@ai-kindle/shared';
 import { promptsApi, adminApi } from '../api/client';
 import { showToast } from '../utils/toast';
 import {
@@ -68,7 +68,7 @@ export default function AdminDashboard() {
   const [selectedNiche, setSelectedNiche] = useState<Niche | ''>('');
   const [prompts, setPrompts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
+  // const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
 
   // Jobs tab state
   const [jobs, setJobs] = useState<any[]>([]);
@@ -229,7 +229,7 @@ export default function AdminDashboard() {
     return acc;
   }, {});
 
-  const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
+  const tabs: { id: TabType; label: string; icon: React.ReactElement }[] = [
     { id: 'overview', label: 'Overview', icon: <Dashboard /> },
     { id: 'books', label: 'All Books', icon: <BookIcon /> },
     { id: 'jobs', label: 'Jobs', icon: <Work /> },
@@ -247,7 +247,7 @@ export default function AdminDashboard() {
       <Paper sx={{ mb: 3 }}>
         <Tabs
           value={activeTab}
-          onChange={(e, newValue) => setActiveTab(newValue)}
+          onChange={(_e, newValue) => setActiveTab(newValue)}
           variant="scrollable"
           scrollButtons="auto"
           sx={{ borderBottom: 1, borderColor: 'divider' }}

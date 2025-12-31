@@ -1,7 +1,7 @@
 import express from 'express';
-import { GenerationJobModel } from '../models/GenerationJob';
-import { ChapterContentModel } from '../models/ChapterContent';
-import { TokenUsageModel } from '../models/TokenUsage';
+import { GenerationJobModel } from '../models/GenerationJob.js';
+import { ChapterContentModel } from '../models/ChapterContent.js';
+import { TokenUsageModel } from '../models/TokenUsage.js';
 
 const router = express.Router();
 

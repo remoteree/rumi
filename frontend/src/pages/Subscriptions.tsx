@@ -28,7 +28,7 @@ export default function Subscriptions() {
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedTier, setSelectedTier] = useState<string | null>(null);
+  const [_selectedTier, setSelectedTier] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();

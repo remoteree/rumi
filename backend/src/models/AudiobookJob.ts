@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export interface AudiobookJobDocument extends Document {
+export interface AudiobookJobDocument extends Omit<Document, 'model'> {
   bookId: mongoose.Types.ObjectId;
   voice: string; // OpenAI voice: alloy, echo, fable, onyx, nova, shimmer
   model: 'tts-1' | 'tts-1-hd'; // TTS model

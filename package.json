@@ -18,10 +18,14 @@
     "build:shared": "cd shared && npm run build",
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && npm run build",
-    "install:all": "npm install && cd shared && npm install && npm run build && cd ../frontend && npm install && cd ../backend && npm install"
+    "install:all": "npm install && cd shared && npm install && npm run build && cd ../frontend && npm install && cd ../backend && npm install",
+    "deploy": "tsx scripts/deploy.ts"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@types/archiver": "^6.0.4",
+    "archiver": "^7.0.1",
+    "concurrently": "^8.2.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
   }
 }
-

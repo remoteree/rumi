@@ -1,4 +1,4 @@
-import { BookTypeMetadata, NicheMetadata, BookType, Niche } from './types';
+import { BookTypeMetadata, NicheMetadata, BookType, Niche } from './types.js';
 
 export const BOOK_TYPES: BookTypeMetadata[] = [
   {

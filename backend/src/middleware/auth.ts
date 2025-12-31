@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { UserModel, UserRole } from '../models/User';
+import { UserModel, UserRole } from '../models/User.js';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -30,7 +30,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     }
 
     req.user = {
-      _id: user._id.toString(),
+      _id: (user._id as any).toString(),
       email: user.email,
       name: user.name,
       role: user.role,

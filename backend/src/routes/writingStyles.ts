@@ -1,5 +1,5 @@
 import express from 'express';
-import { WritingStyleModel } from '../models/WritingStyle';
+import { WritingStyleModel } from '../models/WritingStyle.js';
 
 const router = express.Router();
 

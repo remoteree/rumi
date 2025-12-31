@@ -1,10 +1,10 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { TokenUsage as ITokenUsage } from '@ai-kindle/shared';
 
-export interface TokenUsageDocument extends Omit<ITokenUsage, '_id'>, Document {}
+export interface TokenUsageDocument extends Omit<ITokenUsage, '_id'>, Omit<Document, 'model'> {}
 
 const TokenUsageSchema = new Schema<TokenUsageDocument>({
-  bookId: { type: Schema.Types.ObjectId, ref: 'Book', required: true },
+  bookId: { type: Schema.Types.ObjectId as any, ref: 'Book', required: true },
   jobId: { type: Schema.Types.ObjectId, ref: 'GenerationJob' },
   step: { type: String, required: true },
   promptTokens: { type: Number, required: true },

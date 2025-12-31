@@ -18,8 +18,6 @@ import {
   Card,
   CardContent,
   CardActions,
-  IconButton,
-  Divider,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -27,7 +25,6 @@ import {
   Settings,
   CheckCircle,
   Pending,
-  Error as ErrorIcon,
   Publish,
   Download,
   Warning,

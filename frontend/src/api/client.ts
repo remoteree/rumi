@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { Book, BookContext, ApiResponse, GenerationJob, PromptVersion, TokenUsage, WritingStyle, User, UserRole, Publisher, EditingRequest, BookVersion, SubscriptionTier } from '@ai-kindle/shared';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use environment variable if set, otherwise use relative URL (same origin)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const client = axios.create({
   baseURL: API_BASE_URL,
@@ -77,7 +78,7 @@ export const booksApi = {
   },
   downloadPublished: async (id: string) => {
     // Trigger download
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
     window.open(`${API_BASE_URL}/books/${id}/download`, '_blank');
   },
   republish: async (id: string) => {
@@ -90,7 +91,7 @@ export const booksApi = {
   },
   exportDOCX: async (id: string) => {
     // Trigger download
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
     window.open(`${API_BASE_URL}/books/${id}/export-docx`, '_blank');
   },
   estimateAudiobook: async (id: string, voice: string, model: 'tts-1' | 'tts-1-hd' = 'tts-1') => {
@@ -122,15 +123,15 @@ export const booksApi = {
     return res.data;
   },
   downloadChapterAudio: async (id: string, chapterNumber: number) => {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
     window.open(`${API_BASE_URL}/books/${id}/audiobook/chapter/${chapterNumber}`, '_blank');
   },
   downloadPrologueAudio: async (id: string) => {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
     window.open(`${API_BASE_URL}/books/${id}/audiobook/prologue`, '_blank');
   },
   downloadEpilogueAudio: async (id: string) => {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
     window.open(`${API_BASE_URL}/books/${id}/audiobook/epilogue`, '_blank');
   },
   cancelAudiobook: async (id: string) => {
@@ -172,15 +173,15 @@ export const booksApi = {
     return res.data;
   },
   downloadOpeningCredits: async (id: string) => {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
     window.open(`${API_BASE_URL}/books/${id}/audiobook/opening-credits`, '_blank');
   },
   downloadClosingCredits: async (id: string) => {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
     window.open(`${API_BASE_URL}/books/${id}/audiobook/closing-credits`, '_blank');
   },
   downloadRetailSample: async (id: string) => {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
     window.open(`${API_BASE_URL}/books/${id}/audiobook/retail-sample`, '_blank');
   }
 };

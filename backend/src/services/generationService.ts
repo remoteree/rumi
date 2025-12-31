@@ -1,11 +1,11 @@
 import OpenAI from 'openai';
 import { BookType, Niche, PromptType, BookContext, BookOutline, ChapterOutlineNode, BOOK_TYPES } from '@ai-kindle/shared';
-import { BookModel } from '../models/Book';
-import { BookOutlineModel } from '../models/BookOutline';
-import { ChapterContentModel } from '../models/ChapterContent';
-import { GenerationJobModel } from '../models/GenerationJob';
-import { TokenUsageModel } from '../models/TokenUsage';
-import { getPromptVersion, generatePromptsForCombo } from './promptGenerator';
+import { BookModel } from '../models/Book.js';
+import { BookOutlineModel } from '../models/BookOutline.js';
+import { ChapterContentModel } from '../models/ChapterContent.js';
+import { GenerationJobModel } from '../models/GenerationJob.js';
+import { TokenUsageModel } from '../models/TokenUsage.js';
+import { getPromptVersion, generatePromptsForCombo } from './promptGenerator.js';
 
 // Lazy initialization of OpenAI client to ensure env vars are loaded first
 let openaiInstance: OpenAI | null = null;

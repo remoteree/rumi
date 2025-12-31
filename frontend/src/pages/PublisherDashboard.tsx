@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { EditingRequest, EditingRequestStatus } from '@ai-kindle/shared';
-import { publishersApi, editingRequestsApi } from '../api/client';
+import { publishersApi } from '../api/client';
 import {
   Container,
   Typography,
@@ -279,7 +279,7 @@ export default function PublisherDashboard() {
     );
   };
 
-  const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
+  const tabs: { id: TabType; label: string; icon: React.ReactElement }[] = [
     { id: 'overview', label: 'Overview', icon: <Dashboard /> },
     { id: 'users', label: 'Users', icon: <People /> },
     { id: 'books', label: 'Books', icon: <BookIcon /> },
@@ -319,7 +319,7 @@ export default function PublisherDashboard() {
       <Paper sx={{ mb: 3 }}>
         <Tabs
           value={activeTab}
-          onChange={(e, newValue) => setActiveTab(newValue)}
+          onChange={(_e, newValue) => setActiveTab(newValue)}
           variant="scrollable"
           scrollButtons="auto"
           sx={{ borderBottom: 1, borderColor: 'divider' }}
@@ -667,7 +667,7 @@ export default function PublisherDashboard() {
                     fullWidth
                     label="Editing Rate"
                     type="number"
-                    step="0.01"
+                    inputProps={{ step: "0.01" }}
                     value={profile.rates?.editingRate || ''}
                     onChange={(e) =>
                       setProfile({
@@ -874,7 +874,7 @@ export default function PublisherDashboard() {
             fullWidth
             label="Estimated Cost (optional)"
                 type="number"
-                step="0.01"
+                inputProps={{ step: "0.01" }}
                 value={estimatedCost}
                 onChange={(e) => setEstimatedCost(e.target.value)}
                 placeholder="0.00"

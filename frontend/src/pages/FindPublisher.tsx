@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Publisher, EditingRequestStatus } from '@ai-kindle/shared';
 import { publishersApi, editingRequestsApi, booksApi } from '../api/client';
-import { useAuth } from '../contexts/AuthContext';
 import { showToast } from '../utils/toast';
 import { useTheme } from '@mui/material/styles';
 import { Alert, Box } from '@mui/material';
@@ -17,8 +16,6 @@ export default function FindPublisher() {
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { user } = useAuth();
-  const navigate = useNavigate();
   const theme = useTheme();
 
   useEffect(() => {

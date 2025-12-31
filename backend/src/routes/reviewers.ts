@@ -1,11 +1,11 @@
 import express from 'express';
-import { BookModel } from '../models/Book';
-import { BookVersionModel } from '../models/BookVersion';
-import { ChapterContentModel } from '../models/ChapterContent';
-import { EditingRequestModel, EditingRequestStatus } from '../models/EditingRequest';
-import { PublisherModel } from '../models/Publisher';
-import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
-import { UserRole } from '../models/User';
+import { BookModel } from '../models/Book.js';
+import { BookVersionModel } from '../models/BookVersion.js';
+import { ChapterContentModel } from '../models/ChapterContent.js';
+import { EditingRequestModel, EditingRequestStatus } from '../models/EditingRequest.js';
+import { PublisherModel } from '../models/Publisher.js';
+import { authenticate, requireRole, AuthRequest } from '../middleware/auth.js';
+import { UserRole } from '../models/User.js';
 
 const router = express.Router();
 

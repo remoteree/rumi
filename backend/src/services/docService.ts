@@ -2,9 +2,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Document, Packer, Paragraph, HeadingLevel, ImageRun, AlignmentType } from 'docx';
-import { BookModel } from '../models/Book';
-import { BookOutlineModel } from '../models/BookOutline';
-import { ChapterContentModel } from '../models/ChapterContent';
+import { BookModel } from '../models/Book.js';
+import { BookOutlineModel } from '../models/BookOutline.js';
+import { ChapterContentModel } from '../models/ChapterContent.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -284,12 +284,12 @@ export async function generateDOCX(bookId: string): Promise<string> {
         new Paragraph({
           children: [
             new ImageRun({
-              data: imageData,
+              data: imageData as Buffer,
               transformation: {
                 width: 400,
                 height: 640
               }
-            })
+            } as any)
           ],
           alignment: AlignmentType.CENTER,
           spacing: { after: 400 }
@@ -372,26 +372,28 @@ export async function generateDOCX(bookId: string): Promise<string> {
           } catch {
             // Try other extensions
             let found = false;
+            let altImageData: Buffer | undefined;
             for (const ext of ['jpg', 'jpeg', 'gif', 'webp']) {
               try {
                 const altPath = imagePath.replace(/\.png$/, `.${ext}`);
-                imageData = await fs.readFile(altPath);
+                altImageData = await fs.readFile(altPath);
                 found = true;
                 break;
               } catch {
                 continue;
               }
             }
-            if (!found) {
+            if (!found || !altImageData) {
               throw new Error('Image not found');
             }
+            imageData = altImageData;
           }
         }
 
         children.push(
           new Paragraph({
             children: [
-              new ImageRun({
+              new (ImageRun as any)({
                 data: imageData,
                 transformation: {
                   width: 400,

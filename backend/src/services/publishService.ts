@@ -2,9 +2,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import archiver from 'archiver';
-import { BookModel } from '../models/Book';
-import { BookOutlineModel } from '../models/BookOutline';
-import { ChapterContentModel } from '../models/ChapterContent';
+import { BookModel } from '../models/Book.js';
+import { BookOutlineModel } from '../models/BookOutline.js';
+import { ChapterContentModel } from '../models/ChapterContent.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1062,7 +1062,7 @@ p, li {
     archive.pipe(output);
 
     // Add mimetype first (must be uncompressed)
-    archive.file(path.join(epubDir, 'mimetype'), { name: 'mimetype', store: true });
+    (archive as any).file(path.join(epubDir, 'mimetype'), { name: 'mimetype', store: true });
     
     // Add all other files
     archive.directory(metaInfDir, 'META-INF');

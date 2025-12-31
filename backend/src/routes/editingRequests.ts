@@ -1,8 +1,8 @@
 import express from 'express';
-import { EditingRequestModel, EditingRequestStatus } from '../models/EditingRequest';
-import { BookModel } from '../models/Book';
-import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
-import { UserRole } from '../models/User';
+import { EditingRequestModel, EditingRequestStatus } from '../models/EditingRequest.js';
+import { BookModel } from '../models/Book.js';
+import { authenticate, requireRole, AuthRequest } from '../middleware/auth.js';
+import { UserRole } from '../models/User.js';
 
 const router = express.Router();
 

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { UserRole } from '@ai-kindle/shared';
+import { UserRole, Publisher } from '@ai-kindle/shared';
 import { publishersApi } from '../api/client';
-import { Publisher } from '@ai-kindle/shared';
 import {
   Container,
   Paper,
@@ -19,9 +18,6 @@ import {
   RadioGroup,
   FormControlLabel,
   Radio,
-  Select,
-  MenuItem,
-  InputLabel,
 } from '@mui/material';
 import { PersonAdd } from '@mui/icons-material';
 
@@ -34,7 +30,7 @@ export default function Signup() {
   const [name, setName] = useState('');
   const [role, setRole] = useState<UserRole | ''>('');
   const [publisherId, setPublisherId] = useState('');
-  const [publishers, setPublishers] = useState<Publisher[]>([]);
+  const [_publishers, setPublishers] = useState<Publisher[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [inviteInfo, setInviteInfo] = useState<{ publisherName: string; email?: string } | null>(null);

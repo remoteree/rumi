@@ -1,12 +1,12 @@
 import express from 'express';
-import { BookModel } from '../models/Book';
-import { GenerationJobModel } from '../models/GenerationJob';
-import { BookOutlineModel } from '../models/BookOutline';
-import { ChapterContentModel } from '../models/ChapterContent';
-import { TokenUsageModel } from '../models/TokenUsage';
-import { generatePromptsForCombo } from '../services/promptGenerator';
+import { BookModel } from '../models/Book.js';
+import { GenerationJobModel } from '../models/GenerationJob.js';
+import { BookOutlineModel } from '../models/BookOutline.js';
+import { ChapterContentModel } from '../models/ChapterContent.js';
+import { TokenUsageModel } from '../models/TokenUsage.js';
+import { generatePromptsForCombo } from '../services/promptGenerator.js';
 import { BookType, Niche } from '@ai-kindle/shared';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth.js';
 
 const router = express.Router();
 

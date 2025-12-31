@@ -4,10 +4,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { BookModel } from '../models/Book';
-import { ChapterContentModel } from '../models/ChapterContent';
-import { BookOutlineModel } from '../models/BookOutline';
-import { AudiobookJobModel } from '../models/AudiobookJob';
+import { BookModel } from '../models/Book.js';
+import { ChapterContentModel } from '../models/ChapterContent.js';
+import { BookOutlineModel } from '../models/BookOutline.js';
+import { AudiobookJobModel } from '../models/AudiobookJob.js';
 
 const execAsync = promisify(exec);
 
@@ -497,11 +497,12 @@ export async function generateChapterAudio(
       if (job) {
         const progress = job.progress || new Map();
         const chapterKey = chapterNumber.toString();
-        if (!progress.get(chapterKey)) {
-          progress.set(chapterKey, true);
+        const progressMap = progress instanceof Map ? progress : new Map(Object.entries(progress));
+        if (!progressMap.get(chapterKey)) {
+          progressMap.set(chapterKey, true);
           await AudiobookJobModel.updateOne(
             { _id: jobId },
-            { progress, currentChapter: chapterNumber }
+            { progress: progressMap, currentChapter: chapterNumber }
           );
         }
       }
@@ -609,14 +610,15 @@ export async function generateChapterAudio(
   const job = await AudiobookJobModel.findById(jobId);
   if (job) {
     const progress = job.progress || new Map();
+    const progressMap = progress instanceof Map ? progress : new Map(Object.entries(progress));
     // Mongoose Maps require string keys
-    progress.set(chapterNumber.toString(), true);
+    progressMap.set(chapterNumber.toString(), true);
     
     const currentCost = job.actualCost || 0;
     await AudiobookJobModel.updateOne(
       { _id: jobId },
       {
-        progress,
+        progress: progressMap,
         currentChapter: chapterNumber,
         actualCost: currentCost + chapterCost
       }
@@ -849,16 +851,17 @@ export async function processAudiobookJob(jobId: string): Promise<void> {
       }
       
       const chapterKey = chapter.chapterNumber.toString();
-      const inProgress = existingProgress.get(chapterKey);
+      const progressMap = existingProgress instanceof Map ? existingProgress : new Map(Object.entries(existingProgress));
+      const inProgress = progressMap.get(chapterKey);
       const audioExists = await chapterAudioExists(bookIdStr, chapter.chapterNumber);
       
       if (audioExists && !inProgress) {
         // File exists but not in progress - update progress
         console.log(`✅ [AUDIOBOOK JOB ${jobId}] Chapter ${chapter.chapterNumber} audio exists, updating progress...`);
-        existingProgress.set(chapterKey, true);
+        progressMap.set(chapterKey, true);
         await AudiobookJobModel.updateOne(
           { _id: jobId },
-          { progress: existingProgress }
+          { progress: progressMap }
         );
       }
       
@@ -927,7 +930,8 @@ export async function processAudiobookJob(jobId: string): Promise<void> {
         console.log(`⏭️  [AUDIOBOOK JOB ${jobId}] Chapter ${chapterNumber} already has audio, skipping...`);
         // Update progress
         const progress = chapterJob?.progress || new Map();
-        progress.set(chapterNumber.toString(), true);
+        const progressMap = progress instanceof Map ? progress : new Map(Object.entries(progress));
+        progressMap.set(chapterNumber.toString(), true);
         await AudiobookJobModel.updateOne(
           { _id: jobId },
           { progress, currentChapter: chapterNumber }

@@ -3,17 +3,18 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { connectDatabase } from './config/database';
-import booksRouter from './routes/books';
-import promptsRouter from './routes/prompts';
-import jobsRouter from './routes/jobs';
-import adminRouter from './routes/admin';
-import writingStylesRouter from './routes/writingStyles';
-import authRouter from './routes/auth';
-import publishersRouter from './routes/publishers';
-import editingRequestsRouter from './routes/editingRequests';
-import reviewersRouter from './routes/reviewers';
-import subscriptionsRouter from './routes/subscriptions';
+import { existsSync } from 'fs';
+import { connectDatabase } from './config/database.js';
+import booksRouter from './routes/books.js';
+import promptsRouter from './routes/prompts.js';
+import jobsRouter from './routes/jobs.js';
+import adminRouter from './routes/admin.js';
+import writingStylesRouter from './routes/writingStyles.js';
+import authRouter from './routes/auth.js';
+import publishersRouter from './routes/publishers.js';
+import editingRequestsRouter from './routes/editingRequests.js';
+import reviewersRouter from './routes/reviewers.js';
+import subscriptionsRouter from './routes/subscriptions.js';
 
 // Get the directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -55,9 +56,14 @@ if (!rootResult.error) {
 }
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 8080;
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
+}));
 app.use(express.json());
 
 // Serve uploaded images statically
@@ -103,6 +109,22 @@ app.use('/api/writing-styles', writingStylesRouter);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Serve frontend static files in production
+const FRONTEND_DIR = path.resolve(__dirname, 'public');
+const frontendExists = existsSync(FRONTEND_DIR);
+if (frontendExists) {
+  app.use(express.static(FRONTEND_DIR));
+  
+  // Serve index.html for all non-API routes (SPA routing)
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(FRONTEND_DIR, 'index.html'));
+  });
+}
 
 // Global error handler middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

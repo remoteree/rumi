@@ -3,15 +3,15 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
-import { ChapterContentModel } from '../models/ChapterContent';
-import { GenerationJobModel } from '../models/GenerationJob';
-import { BookModel } from '../models/Book';
-import { BookOutlineModel } from '../models/BookOutline';
-import { TokenUsageModel } from '../models/TokenUsage';
-import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
-import { UserRole } from '../models/User';
-import { UserModel } from '../models/User';
-import { PublisherModel } from '../models/Publisher';
+import { ChapterContentModel } from '../models/ChapterContent.js';
+import { GenerationJobModel } from '../models/GenerationJob.js';
+import { BookModel } from '../models/Book.js';
+import { BookOutlineModel } from '../models/BookOutline.js';
+import { TokenUsageModel } from '../models/TokenUsage.js';
+import { authenticate, requireRole, AuthRequest } from '../middleware/auth.js';
+import { UserRole } from '../models/User.js';
+import { UserModel } from '../models/User.js';
+import { PublisherModel } from '../models/Publisher.js';
 
 const router = express.Router();
 
@@ -385,10 +385,10 @@ router.post('/books/:bookId/chapters/:chapterNumber/image', upload.single('image
     if (!chapter.imageMetadata) {
       chapter.imageMetadata = {};
     }
-    chapter.imageMetadata.uploadedAt = new Date();
-    chapter.imageMetadata.fileName = req.file.originalname;
-    chapter.imageMetadata.fileSize = req.file.size;
-    chapter.imageMetadata.mimeType = req.file.mimetype;
+    (chapter.imageMetadata as any).uploadedAt = new Date();
+    (chapter.imageMetadata as any).fileName = req.file.originalname;
+    (chapter.imageMetadata as any).fileSize = req.file.size;
+    (chapter.imageMetadata as any).mimeType = req.file.mimetype;
     await chapter.save();
 
     // Update job progress

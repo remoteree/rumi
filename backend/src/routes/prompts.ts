@@ -1,6 +1,6 @@
 import express from 'express';
-import { PromptVersionModel } from '../models/PromptVersion';
-import { generatePromptsForCombo, getAllPromptVersions } from '../services/promptGenerator';
+import { PromptVersionModel } from '../models/PromptVersion.js';
+import { generatePromptsForCombo, getAllPromptVersions } from '../services/promptGenerator.js';
 import { BookType, Niche } from '@ai-kindle/shared';
 
 const router = express.Router();

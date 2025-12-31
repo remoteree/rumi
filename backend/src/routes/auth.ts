@@ -1,9 +1,9 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { UserModel, UserRole } from '../models/User';
-import { PublisherModel } from '../models/Publisher';
-import { ReviewerInviteModel } from '../models/ReviewerInvite';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { UserModel, UserRole } from '../models/User.js';
+import { PublisherModel } from '../models/Publisher.js';
+import { ReviewerInviteModel } from '../models/ReviewerInvite.js';
+import { authenticate, AuthRequest } from '../middleware/auth.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';

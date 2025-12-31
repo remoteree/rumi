@@ -317,9 +317,11 @@ export default function BookAdmin() {
     if (!bookId) return;
 
     if (!publishStatus?.ready && !force) {
+      const issues = publishStatus?.issues || [];
+      const issueCount = issues.length;
       const shouldForce = confirm(
-        `Book is not ready for publishing (${publishStatus?.issues.length || 0} issues).\n\n` +
-        `Issues:\n${publishStatus?.issues.slice(0, 5).join('\n')}${publishStatus?.issues.length > 5 ? `\n...and ${publishStatus.issues.length - 5} more` : ''}\n\n` +
+        `Book is not ready for publishing (${issueCount} issues).\n\n` +
+        `Issues:\n${issues.slice(0, 5).join('\n')}${issueCount > 5 ? `\n...and ${issueCount - 5} more` : ''}\n\n` +
         `Do you want to publish anyway?`
       );
       if (shouldForce) {
@@ -660,7 +662,7 @@ export default function BookAdmin() {
                       const bookId = typeof id === 'string' ? id : (id as any)?._id || (id as any)?.id;
                       if (bookId) {
                         const result = await booksApi.processAudioFiles(bookId);
-                        if (result.success) {
+                        if (result.success && result.data) {
                           const message = `Processed ${result.data.processed.length} audio files${result.data.failed.length > 0 ? `\n\nFailed: ${result.data.failed.map(f => f.file).join(', ')}` : ''}`;
                           showToast.info(message);
                         }
@@ -989,7 +991,7 @@ export default function BookAdmin() {
               <p><strong>Current Cover Image:</strong></p>
               <img
                 src={book.coverImageUrl.startsWith('/api/images/') 
-                  ? `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}${book.coverImageUrl}`
+                  ? `${import.meta.env.VITE_API_URL || ''}${book.coverImageUrl}`
                   : book.coverImageUrl}
                 alt="Book Cover"
                 style={{ maxWidth: '300px', maxHeight: '400px', border: '1px solid #ddd', borderRadius: '4px' }}
@@ -1221,7 +1223,7 @@ export default function BookAdmin() {
                     <div style={{ marginTop: '1rem' }}>
                       <img
                         src={selectedChapter.imageUrl.startsWith('/api/images/') 
-                          ? `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}${selectedChapter.imageUrl}`
+                          ? `${import.meta.env.VITE_API_URL || ''}${selectedChapter.imageUrl}`
                           : selectedChapter.imageUrl}
                         alt={`Chapter ${selectedChapter.chapterNumber}`}
                         style={{ maxWidth: '100%', maxHeight: '400px', border: '1px solid #ddd', borderRadius: '4px' }}

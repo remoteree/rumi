@@ -2,11 +2,11 @@ import cron from 'node-cron';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { connectDatabase } from './config/database';
-import { GenerationJobModel } from './models/GenerationJob';
-import { AudiobookJobModel } from './models/AudiobookJob';
-import { processGenerationJob } from './services/generationService';
-import { processAudiobookJob } from './services/audiobookService';
+import { connectDatabase } from './config/database.js';
+import { GenerationJobModel } from './models/GenerationJob.js';
+import { AudiobookJobModel } from './models/AudiobookJob.js';
+import { processGenerationJob } from './services/generationService.js';
+import { processAudiobookJob } from './services/audiobookService.js';
 
 // Get the directory name in ESM (needed for path resolution)
 const __filename = fileURLToPath(import.meta.url);

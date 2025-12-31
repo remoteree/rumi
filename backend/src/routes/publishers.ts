@@ -1,12 +1,12 @@
 import express from 'express';
-import { PublisherModel } from '../models/Publisher';
-import { EditingRequestModel, EditingRequestStatus } from '../models/EditingRequest';
-import { BookModel } from '../models/Book';
-import { BookOutlineModel } from '../models/BookOutline';
-import { UserModel } from '../models/User';
-import { ReviewerInviteModel } from '../models/ReviewerInvite';
-import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
-import { UserRole } from '../models/User';
+import { PublisherModel } from '../models/Publisher.js';
+import { EditingRequestModel, EditingRequestStatus } from '../models/EditingRequest.js';
+import { BookModel } from '../models/Book.js';
+import { BookOutlineModel } from '../models/BookOutline.js';
+import { UserModel } from '../models/User.js';
+import { ReviewerInviteModel } from '../models/ReviewerInvite.js';
+import { authenticate, requireRole, AuthRequest } from '../middleware/auth.js';
+import { UserRole } from '../models/User.js';
 import crypto from 'crypto';
 
 const router = express.Router();
@@ -164,7 +164,7 @@ router.post('/requests/:requestId/accept', authenticate, requireRole(UserRole.PU
       return res.status(404).json({ success: false, error: 'Request not found' });
     }
 
-    if (request.publisherId.toString() !== publisher._id.toString()) {
+    if (request.publisherId.toString() !== (publisher._id as any).toString()) {
       return res.status(403).json({ success: false, error: 'Not authorized' });
     }
 
@@ -208,7 +208,7 @@ router.post('/requests/:requestId/reject', authenticate, requireRole(UserRole.PU
       return res.status(404).json({ success: false, error: 'Request not found' });
     }
 
-    if (request.publisherId.toString() !== publisher._id.toString()) {
+    if (request.publisherId.toString() !== (publisher._id as any).toString()) {
       return res.status(403).json({ success: false, error: 'Not authorized' });
     }
 
