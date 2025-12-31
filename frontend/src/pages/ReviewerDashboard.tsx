@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Book, BookVersion } from '@ai-kindle/shared';
 import { reviewersApi } from '../api/client';
+import { useTheme } from '@mui/material/styles';
+import { Alert, Box } from '@mui/material';
 import '../index.css';
 
 export default function ReviewerDashboard() {
@@ -15,6 +17,7 @@ export default function ReviewerDashboard() {
   const [editText, setEditText] = useState('');
   const [notes, setNotes] = useState('');
   const navigate = useNavigate();
+  const theme = useTheme();
 
   useEffect(() => {
     loadManuscripts();
@@ -90,9 +93,9 @@ export default function ReviewerDashboard() {
       <h1>Reviewer Dashboard</h1>
 
       {error && (
-        <div className="card" style={{ background: '#f8d7da', color: '#721c24', marginBottom: '1rem' }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           {error}
-        </div>
+        </Alert>
       )}
 
       {!selectedBook ? (
@@ -141,13 +144,14 @@ export default function ReviewerDashboard() {
               ) : (
                 <div>
                   {chapters.map((chapter) => (
-                    <div
+                    <Box
                       key={chapter._id}
-                      style={{
+                      sx={{
                         padding: '1rem',
-                        border: '1px solid #ddd',
+                        border: `1px solid ${theme.palette.divider}`,
                         borderRadius: '8px',
-                        marginBottom: '1rem'
+                        marginBottom: '1rem',
+                        bgcolor: 'background.paper'
                       }}
                     >
                       <h4>Chapter {chapter.chapterNumber}: {chapter.title || 'Untitled'}</h4>
@@ -201,7 +205,7 @@ export default function ReviewerDashboard() {
                           </button>
                         </div>
                       )}
-                    </div>
+                    </Box>
                   ))}
                 </div>
               )}
@@ -215,13 +219,14 @@ export default function ReviewerDashboard() {
               ) : (
                 <div>
                   {versions.map((version) => (
-                    <div
+                    <Box
                       key={version._id}
-                      style={{
+                      sx={{
                         padding: '1rem',
-                        border: '1px solid #ddd',
+                        border: `1px solid ${theme.palette.divider}`,
                         borderRadius: '8px',
-                        marginBottom: '1rem'
+                        marginBottom: '1rem',
+                        bgcolor: 'background.paper'
                       }}
                     >
                       <h4>Version {version.versionNumber}</h4>
@@ -249,7 +254,7 @@ export default function ReviewerDashboard() {
                           ))}
                         </ul>
                       </details>
-                    </div>
+                    </Box>
                   ))}
                 </div>
               )}

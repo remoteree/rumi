@@ -4,6 +4,8 @@ import { Publisher, EditingRequestStatus } from '@ai-kindle/shared';
 import { publishersApi, editingRequestsApi, booksApi } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast } from '../utils/toast';
+import { useTheme } from '@mui/material/styles';
+import { Alert, Box } from '@mui/material';
 import '../index.css';
 
 export default function FindPublisher() {
@@ -17,6 +19,7 @@ export default function FindPublisher() {
   const [error, setError] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
+  const theme = useTheme();
 
   useEffect(() => {
     loadData();
@@ -105,9 +108,9 @@ export default function FindPublisher() {
       <h1>Find a Publisher</h1>
 
       {error && (
-        <div className="card" style={{ background: '#f8d7da', color: '#721c24', marginBottom: '1rem' }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           {error}
-        </div>
+        </Alert>
       )}
 
       <div className="grid grid-2" style={{ gap: '2rem', marginTop: '2rem' }}>
@@ -182,13 +185,14 @@ export default function FindPublisher() {
           ) : (
             <div>
               {publishers.map((pub) => (
-                <div
+                <Box
                   key={pub._id}
-                  style={{
+                  sx={{
                     padding: '1rem',
-                    border: '1px solid #ddd',
+                    border: `1px solid ${theme.palette.divider}`,
                     borderRadius: '8px',
-                    marginBottom: '1rem'
+                    marginBottom: '1rem',
+                    bgcolor: 'background.paper'
                   }}
                 >
                   <h3>{pub.name}</h3>
@@ -199,7 +203,7 @@ export default function FindPublisher() {
                   {pub.rates?.proofreadingRate && (
                     <p><strong>Proofreading Rate:</strong> ${pub.rates.proofreadingRate} per {pub.rates.proofreadingRateType}</p>
                   )}
-                </div>
+                </Box>
               ))}
             </div>
           )}
@@ -213,31 +217,56 @@ export default function FindPublisher() {
           <p>No requests yet.</p>
         ) : (
           <div>
-            {myRequests.map((request) => (
-              <div
-                key={request._id}
-                style={{
-                  padding: '1rem',
-                  border: '1px solid #ddd',
-                  borderRadius: '8px',
-                  marginBottom: '1rem',
-                  background: request.status === EditingRequestStatus.ACCEPTED ? '#d4edda' :
-                    request.status === EditingRequestStatus.REJECTED ? '#f8d7da' : '#fff3cd'
-                }}
-              >
-                <h3>{(request as any).bookId?.title || 'Book'}</h3>
-                <p><strong>Publisher:</strong> {(request as any).publisherId?.name || 'Unknown'}</p>
-                <p><strong>Status:</strong> {request.status}</p>
-                {request.message && <p><strong>Your Message:</strong> {request.message}</p>}
-                {request.responseMessage && <p><strong>Response:</strong> {request.responseMessage}</p>}
-                {request.estimatedCost && <p><strong>Estimated Cost:</strong> ${request.estimatedCost}</p>}
-                {request.status === EditingRequestStatus.ACCEPTED && (
-                  <p style={{ color: '#155724', fontWeight: 'bold' }}>
-                    ✓ Request accepted! The publisher can now edit your book.
-                  </p>
-                )}
-              </div>
-            ))}
+            {myRequests.map((request) => {
+              const getStatusColors = () => {
+                switch (request.status) {
+                  case EditingRequestStatus.ACCEPTED:
+                    return {
+                      bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+                      borderColor: theme.palette.success.main,
+                      textColor: theme.palette.success.main
+                    };
+                  case EditingRequestStatus.REJECTED:
+                    return {
+                      bgcolor: theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+                      borderColor: theme.palette.error.main,
+                      textColor: theme.palette.error.main
+                    };
+                  default: // PENDING
+                    return {
+                      bgcolor: theme.palette.mode === 'dark' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
+                      borderColor: theme.palette.warning.main,
+                      textColor: theme.palette.warning.main
+                    };
+                }
+              };
+              const colors = getStatusColors();
+              
+              return (
+                <Box
+                  key={request._id}
+                  sx={{
+                    padding: '1rem',
+                    border: `1px solid ${colors.borderColor}`,
+                    borderRadius: '8px',
+                    marginBottom: '1rem',
+                    bgcolor: colors.bgcolor
+                  }}
+                >
+                  <h3>{(request as any).bookId?.title || 'Book'}</h3>
+                  <p><strong>Publisher:</strong> {(request as any).publisherId?.name || 'Unknown'}</p>
+                  <p><strong>Status:</strong> {request.status}</p>
+                  {request.message && <p><strong>Your Message:</strong> {request.message}</p>}
+                  {request.responseMessage && <p><strong>Response:</strong> {request.responseMessage}</p>}
+                  {request.estimatedCost && <p><strong>Estimated Cost:</strong> ${request.estimatedCost}</p>}
+                  {request.status === EditingRequestStatus.ACCEPTED && (
+                    <p style={{ color: colors.textColor, fontWeight: 'bold' }}>
+                      ✓ Request accepted! The publisher can now edit your book.
+                    </p>
+                  )}
+                </Box>
+              );
+            })}
           </div>
         )}
       </div>
