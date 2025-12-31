@@ -221,3 +221,5 @@ router.get('/manuscripts/:bookId/versions', authenticate, requireRole(UserRole.R
 
 export default router;
 
+
+

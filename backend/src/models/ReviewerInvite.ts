@@ -26,3 +26,5 @@ ReviewerInviteSchema.index({ publisherId: 1, used: 1 });
 
 export const ReviewerInviteModel = mongoose.model<ReviewerInviteDocument>('ReviewerInvite', ReviewerInviteSchema);
 
+
+
