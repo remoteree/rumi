@@ -119,7 +119,7 @@ function AppContent() {
               <>
                 {(user.role === 'writer' || user.role === 'admin') && (
                   <>
-                    <Button component={Link} to="/" color="inherit">Create Book</Button>
+                    <Button component={Link} to="/create" color="inherit">Create Book</Button>
                     <Button component={Link} to="/books" color="inherit">My Books</Button>
                     <Button component={Link} to="/subscriptions" color="inherit">Subscription</Button>
                     <Button component={Link} to="/publishers" color="inherit">Find Publisher</Button>
@@ -183,6 +183,14 @@ function AppContent() {
           <Route
             path="/"
             element={<RootRedirect />}
+          />
+          <Route
+            path="/create"
+            element={
+              <ProtectedRoute allowedRoles={['writer', 'admin']}>
+                <BookCreator />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/books"

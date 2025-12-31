@@ -91,7 +91,7 @@ export default function BookList() {
         </Typography>
         <Button
           component={Link}
-          to="/"
+          to="/create"
           variant="contained"
           startIcon={<Add />}
           size="large"
@@ -104,7 +104,7 @@ export default function BookList() {
         <Card>
           <CardContent>
             <Alert severity="info">
-              No books yet. <Button component={Link} to="/" size="small">Create your first book</Button>
+              No books yet. <Button component={Link} to="/create" size="small">Create your first book</Button>
             </Alert>
           </CardContent>
         </Card>
