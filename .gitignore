@@ -12,5 +12,8 @@ backend/published/
 backend/uploads/
 uploads/
 deployment.zip
+environment.config
+backend/.ebextensions/environment.config
+**/.ebextensions/environment.config
 
 
